@@ -1,9 +1,15 @@
+<!-- CODE WIEDERHERGESTELLT: EchoMind Cloud Dashboard -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EchoMind (Notebook Edition)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EchoMind Cloud</title>
+    
+    <!-- Favicon & PWA -->
+    <link rel="icon" href="https://api.dicebear.com/7.x/shapes/svg?seed=EchoMind&backgroundColor=4f46e5">
+    <meta name="theme-color" content="#ffffff">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -12,7 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     
-    <!-- SUPABASE JS LIBRARY -->
+    <!-- SUPABASE JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
@@ -24,26 +30,26 @@
         .is-read { opacity: 0.6; background-color: #f8fafc; }
         .is-read:hover { opacity: 1; background-color: white; }
         .yt-thumbnail { aspect-ratio: 16/9; background-size: cover; background-position: center; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+        
+        @media (max-width: 640px) { .mobile-hide { display: none; } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
     <!-- Navigation -->
-    <nav class="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10">
+    <nav class="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
         <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
-            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">E</div>
-            <span class="font-semibold text-lg tracking-tight">EchoMind Cloud</span>
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-indigo-200 shadow-lg">E</div>
+            <span class="font-semibold text-lg tracking-tight hidden sm:inline">EchoMind Cloud</span>
         </div>
-        <div class="flex items-center gap-4">
-            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-slate-800 transition" title="Manage Keys">
-                <i class="fa-solid fa-key"></i>
+        <div class="flex items-center gap-3">
+            <div id="userInfo" class="text-xs font-medium text-slate-500 hidden sm:block"></div>
+            <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
+                <i class="fa-solid fa-right-from-bracket"></i>
             </button>
-            <div class="text-xs text-indigo-500 font-medium flex items-center gap-1" id="dbStatus">
-                <div class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div> Cloud
-            </div>
-            <div class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-slate-200">
-                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="w-full h-full object-cover">
-            </div>
+            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-indigo-600 transition border border-slate-200 rounded px-2 py-1 ml-1" title="AI Settings">
+                <i class="fa-solid fa-robot"></i>
+            </button>
         </div>
     </nav>
 
@@ -53,16 +59,16 @@
         <!-- Header Controls -->
         <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
             <div>
-                <h1 class="text-2xl font-bold text-slate-800">Sources</h1>
-                <p class="text-slate-500 text-sm">Your NotebookLM-style knowledge base.</p>
+                <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
+                <p class="text-slate-500 text-sm">Private cloud storage & AI analysis.</p>
             </div>
             <div class="flex gap-2">
                 <input type="file" id="pdfInput" accept=".pdf" class="hidden">
                 <button onclick="app.viewDatabase()" class="text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition shadow-sm border border-slate-200">
                     <i class="fa-solid fa-list"></i> List
                 </button>
-                <button onclick="document.getElementById('pdfInput').click()" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm shadow-indigo-200">
-                    <i class="fa-solid fa-plus"></i> New Source (PDF)
+                <button onclick="document.getElementById('pdfInput').click()" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm shadow-indigo-200 hover:shadow-indigo-300">
+                    <i class="fa-solid fa-plus"></i> PDF Upload
                 </button>
             </div>
         </div>
@@ -71,15 +77,15 @@
         <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             <button onclick="app.openList('unread')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition text-left group relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-regular fa-bookmark text-6xl text-indigo-600"></i></div>
-                <h3 class="font-bold text-lg text-slate-800">Inbox (New)</h3>
-                <p class="text-sm text-slate-500 mt-1">New sources, not yet processed.</p>
+                <h3 class="font-bold text-lg text-slate-800">Inbox (Unread)</h3>
+                <p class="text-sm text-slate-500 mt-1">New sources via extension or upload.</p>
                 <div class="mt-4 text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full w-fit" id="countUnread">0 Sources</div>
             </button>
 
             <button onclick="app.openList('read')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-200 transition text-left group relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-solid fa-book-open text-6xl text-emerald-600"></i></div>
-                <h3 class="font-bold text-lg text-slate-800">Notebook (Processed)</h3>
-                <p class="text-sm text-slate-500 mt-1">Ready for Deep Dive & Chat.</p>
+                <h3 class="font-bold text-lg text-slate-800">Notebook (Read)</h3>
+                <p class="text-sm text-slate-500 mt-1">Ready for Deep Dive & Quiz.</p>
                 <div class="mt-4 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full w-fit" id="countRead">0 Sources</div>
             </button>
         </div>
@@ -87,13 +93,14 @@
         <!-- Cards Grid -->
         <div class="w-full mb-10">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Deep Dive (Random)</h2>
-                <button onclick="app.loadDashboard()" class="text-xs text-slate-400 hover:text-indigo-600 transition"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Deep Dive (Random Selection)</h2>
+                <button onclick="app.loadDashboard()" class="text-xs text-slate-400 hover:text-indigo-600 transition"><i class="fa-solid fa-rotate"></i> Shuffle</button>
             </div>
             <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
             
             <div id="emptyState" class="hidden w-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200">
-                <p class="text-slate-500 font-medium">Notebook empty.</p>
+                <p class="text-slate-500 font-medium">Your notebook is empty.</p>
+                <p class="text-xs text-slate-400 mt-1">Read items to see them here.</p>
             </div>
         </div>
         
@@ -103,25 +110,39 @@
     <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 z-20">
         <div class="max-w-3xl mx-auto relative">
             <div class="flex gap-2">
-                <textarea id="mainInput" rows="1" class="flex-grow p-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 resize-none text-slate-800 placeholder-slate-400" placeholder="Ask your notebook a question..."></textarea>
+                <textarea id="mainInput" rows="1" class="flex-grow p-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 resize-none text-slate-800 placeholder-slate-400 text-sm" placeholder="Ask your notebook..."></textarea>
                 <button id="sendBtn" class="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center transition-colors"><i class="fa-solid fa-arrow-up text-sm"></i></button>
             </div>
         </div>
     </footer>
 
-    <!-- Keys Modal -->
-    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center">
-            <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 text-xl"><i class="fa-solid fa-cloud"></i></div>
-            <h2 class="text-xl font-bold text-slate-800 mb-2">Connect EchoMind</h2>
-            <p class="text-sm text-slate-500 mb-6">Please enter your keys to connect to the cloud and AI.</p>
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-sm w-full shadow-2xl text-center relative animate-fade-in">
+            <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mx-auto mb-4 text-xl font-bold">E</div>
+            <h2 class="text-xl font-bold text-slate-800 mb-1">Welcome back</h2>
+            <p class="text-sm text-slate-500 mb-6">Sign in to access your cloud library.</p>
             
-            <input type="text" id="sbUrl" class="w-full p-3 border border-slate-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Supabase URL">
-            <input type="password" id="sbKey" class="w-full p-3 border border-slate-300 rounded-lg mb-3 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Supabase Anon Key">
-            <div class="h-px bg-slate-100 my-3"></div>
-            <input type="password" id="aiKey" class="w-full p-3 border border-slate-300 rounded-lg mb-6 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Google Gemini API Key">
+            <input type="email" id="emailInput" class="w-full p-3 border border-slate-300 rounded-lg mb-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Email">
+            <input type="password" id="passwordInput" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Password">
 
-            <button onclick="app.saveKeys()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition">Connect</button>
+            <div class="flex flex-col gap-3">
+                <button onclick="app.login()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Sign In</button>
+                <button onclick="app.signup()" class="w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-lg font-medium hover:bg-slate-50 transition">Create Account</button>
+            </div>
+            <div id="authError" class="text-red-500 text-xs mt-4 hidden"></div>
+        </div>
+    </div>
+
+    <!-- AI Key Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center relative animate-fade-in">
+            <button onclick="document.getElementById('apiKeyModal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 text-xl"><i class="fa-solid fa-robot"></i></div>
+            <h2 class="text-xl font-bold text-slate-800 mb-2">AI Setup</h2>
+            <p class="text-sm text-slate-500 mb-6">A Google Gemini API Key is required for analysis. It is stored locally on your device.</p>
+            <input type="password" id="aiKey" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="AIzaSy...">
+            <button onclick="app.saveAiKey()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition">Save Key</button>
         </div>
     </div>
 
@@ -131,36 +152,73 @@
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
                 <div>
                     <h3 class="font-bold text-xl text-slate-800" id="listTitle">List</h3>
-                    <p class="text-xs text-slate-500 mt-1" id="listSubtitle">Data from Supabase</p>
+                    <p class="text-xs text-slate-500 mt-1" id="listSubtitle">Cloud Data</p>
                 </div>
                 <button onclick="document.getElementById('listModal').classList.add('hidden'); app.loadDashboard();" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="flex-grow overflow-y-auto bg-slate-50 p-6">
                 <div id="listContent" class="space-y-3"></div>
             </div>
-            <div class="p-4 border-t border-slate-100 bg-white flex justify-between items-center">
-                <span class="text-xs text-slate-400">Data stored in Cloud.</span>
-                <button onclick="app.clearDatabase()" class="text-xs text-red-600 hover:text-red-800 font-medium px-3 py-1 rounded hover:bg-red-50 transition">Delete All</button>
-            </div>
         </div>
     </div>
 
     <script>
-        // --- 1. SUPABASE DB ---
+        // --- KONFIGURATION (FÜR GITHUB/VERCEL) ---
+        const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
+
+        // --- 1. SUPABASE DB & AUTH ---
         class SupabaseDB {
-            constructor() { this.client = null; this.tableName = 'items'; }
+            constructor() { 
+                this.client = null; 
+                this.tableName = 'items';
+                this.user = null;
+            }
+
             init() {
-                const url = localStorage.getItem('sb_url');
-                const key = localStorage.getItem('sb_key');
-                if (url && key) {
-                    this.client = supabase.createClient(url, key);
+                if (SUPABASE_URL && SUPABASE_KEY) {
+                    this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                     return true;
                 }
                 return false;
             }
+
+            async checkUser() {
+                const { data: { session } } = await this.client.auth.getSession();
+                this.user = session?.user || null;
+                return this.user;
+            }
+
+            async login(email, password) {
+                const { data, error } = await this.client.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                this.user = data.user;
+                return this.user;
+            }
+
+            async signup(email, password) {
+                // Sign up the user
+                const { data, error } = await this.client.auth.signUp({ email, password });
+                if (error) throw error;
+                
+                // If auto-login happened (email confirmation off), return user
+                if (data.session) {
+                    this.user = data.user;
+                }
+                
+                return data; // Return full data to check session
+            }
+
+            async logout() {
+                await this.client.auth.signOut();
+                this.user = null;
+            }
+
             toRow(item) {
                 return {
-                    id: item.id, topic: item.topic, description: item.description, full_text: item.fullText, 
+                    id: item.id,
+                    user_id: this.user.id, 
+                    topic: item.topic, description: item.description, full_text: item.fullText, 
                     icon: item.icon, color: item.color, timestamp: item.timestamp, is_pdf: item.isPdf, 
                     is_youtube: item.isYoutube, is_read: item.isRead, thumbnail: item.thumbnail, url: item.url, transcript_status: item.transcriptStatus
                 };
@@ -172,23 +230,48 @@
                     isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status
                 };
             }
+
             async getAll() {
-                if (!this.client) return [];
+                if (!this.client || !this.user) return [];
                 const { data, error } = await this.client.from(this.tableName).select('*').order('timestamp', { ascending: false });
                 if (error) { console.error(error); return []; }
                 return data.map(this.fromRow);
             }
-            async add(item) { if (!this.client) return; await this.client.from(this.tableName).upsert(this.toRow(item)); }
-            async getById(id) { if (!this.client) return null; const { data } = await this.client.from(this.tableName).select('*').eq('id', id).single(); return data ? this.fromRow(data) : null; }
-            async delete(id) { if (!this.client) return; await this.client.from(this.tableName).delete().eq('id', id); }
-            async clear() { if (!this.client) return; await this.client.from(this.tableName).delete().gt('id', 0); }
+
+            async add(item) {
+                if (!this.client || !this.user) return;
+                const row = this.toRow(item);
+                const { error } = await this.client.from(this.tableName).upsert(row);
+                if (error) console.error("Supabase Error:", error);
+            }
+
+            async getById(id) {
+                if (!this.client) return null;
+                const { data } = await this.client.from(this.tableName).select('*').eq('id', id).single();
+                return data ? this.fromRow(data) : null;
+            }
+
+            async delete(id) {
+                if (!this.client) return;
+                await this.client.from(this.tableName).delete().eq('id', id);
+            }
         }
 
         // --- 2. AI SERVICE ---
         class AIService {
-            constructor() { this.key = localStorage.getItem('gemini_api_key') || ""; }
-            setKey(key) { this.key = key; localStorage.setItem('gemini_api_key', key); }
+            constructor() { this.key = ""; } 
+            
+            loadKey(userId) {
+                this.key = localStorage.getItem(`gemini_key_${userId}`) || "";
+            }
+
+            saveKey(userId, key) {
+                this.key = key;
+                localStorage.setItem(`gemini_key_${userId}`, key);
+            }
+
             hasKey() { return !!this.key; }
+
             async call(prompt, isJson = false) {
                 if (!this.key) throw new Error("MISSING_KEY");
                 const body = { contents: [{ parts: [{ text: prompt }] }] };
@@ -197,7 +280,7 @@
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${this.key}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
                     });
-                    if(!response.ok) throw new Error("API Error");
+                    if(!response.ok) throw new Error("API Error: " + response.status);
                     const data = await response.json();
                     return data.candidates[0].content.parts[0].text;
                 } catch (e) { throw e; }
@@ -218,58 +301,111 @@
                     cards: document.getElementById('cardsContainer'),
                     emptyState: document.getElementById('emptyState'),
                     pdfInput: document.getElementById('pdfInput'),
-                    modal: document.getElementById('apiKeyModal'),
-                    sbUrl: document.getElementById('sbUrl'),
-                    sbKey: document.getElementById('sbKey'),
+                    authModal: document.getElementById('authModal'),
+                    keyModal: document.getElementById('apiKeyModal'),
+                    emailInput: document.getElementById('emailInput'),
+                    passInput: document.getElementById('passwordInput'),
+                    authError: document.getElementById('authError'),
                     aiKey: document.getElementById('aiKey'),
+                    userInfo: document.getElementById('userInfo'),
                     listModal: document.getElementById('listModal'),
-                    listTitle: document.getElementById('listTitle'),
-                    listSubtitle: document.getElementById('listSubtitle'),
                     listContent: document.getElementById('listContent'),
                     countUnread: document.getElementById('countUnread'),
                     countRead: document.getElementById('countRead'),
                     status: document.getElementById('dbStatus')
                 };
+                
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
                 this.dom.input.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleInput(); } };
                 this.dom.input.oninput = function() { this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'; };
                 this.dom.pdfInput.onchange = (e) => this.handlePdfUpload(e);
+                
                 this.init();
             }
 
             async init() {
-                const connected = this.db.init();
-                if (connected && this.ai.hasKey()) {
-                    this.loadDashboard();
-                    this.startClock();
+                if (!this.db.init()) {
+                    // Silent fail
+                }
+
+                // Check Login
+                const user = await this.db.checkUser();
+                if (user) {
+                    this.onLoginSuccess(user);
                 } else {
-                    this.showKeyModal();
+                    this.dom.authModal.classList.remove('hidden');
                 }
             }
 
-            showKeyModal() {
-                this.dom.sbUrl.value = localStorage.getItem('sb_url') || "";
-                this.dom.sbKey.value = localStorage.getItem('sb_key') || "";
-                this.dom.aiKey.value = this.ai.key || "";
-                this.dom.modal.classList.remove('hidden');
+            // --- AUTHENTICATION ---
+            async login() {
+                const email = this.dom.emailInput.value;
+                const pass = this.dom.passInput.value;
+                try {
+                    const user = await this.db.login(email, pass);
+                    this.onLoginSuccess(user);
+                } catch(e) {
+                    this.dom.authError.innerText = "Login failed: " + e.message;
+                    this.dom.authError.classList.remove('hidden');
+                }
             }
 
-            saveKeys() {
-                const url = this.dom.sbUrl.value.trim();
-                const key = this.dom.sbKey.value.trim();
-                const ai = this.dom.aiKey.value.trim();
-                if(url && key && ai) {
-                    localStorage.setItem('sb_url', url);
-                    localStorage.setItem('sb_key', key);
-                    this.ai.setKey(ai);
-                    this.db.init();
-                    this.dom.modal.classList.add('hidden');
-                    this.loadDashboard();
-                    this.startClock();
-                    this.addBubble("✅ EchoMind connected.", false);
-                } else { alert("Please fill all fields."); }
+            async signup() {
+                const email = this.dom.emailInput.value;
+                const pass = this.dom.passInput.value;
+                
+                if (!email || !pass) {
+                    this.dom.authError.innerText = "Please enter email and password.";
+                    this.dom.authError.classList.remove('hidden');
+                    return;
+                }
+
+                try {
+                    const { user, session } = await this.db.signup(email, pass);
+                    
+                    if (session) {
+                        // Auto-login worked!
+                        this.onLoginSuccess(user);
+                    } else {
+                        // Email confirmation required
+                        alert("Account created! Please verify your email address to log in.");
+                        this.dom.authError.innerText = "Check email for verification link.";
+                        this.dom.authError.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    this.dom.authError.innerText = "Error: " + e.message;
+                    this.dom.authError.classList.remove('hidden');
+                }
             }
-            
+
+            async logout() {
+                await this.db.logout();
+                location.reload();
+            }
+
+            onLoginSuccess(user) {
+                this.dom.authModal.classList.add('hidden');
+                this.dom.userInfo.innerText = user.email;
+                this.ai.loadKey(user.id);
+                
+                if (!this.ai.hasKey()) {
+                    this.showKeyModal();
+                }
+
+                this.loadDashboard();
+                this.startClock();
+            }
+
+            showKeyModal() { this.dom.keyModal.classList.remove('hidden'); this.dom.aiKey.value = this.ai.key || ""; }
+            saveAiKey() {
+                const key = this.dom.aiKey.value.trim();
+                if(key && this.db.user) {
+                    this.ai.saveKey(this.db.user.id, key);
+                    this.dom.keyModal.classList.add('hidden');
+                    this.addBubble("✅ AI Key saved locally.", false);
+                }
+            }
+
             startClock() { setInterval(() => { if(this.currentData.length > 0) this.checkReminders(); }, 5000); }
             checkReminders() {
                 const now = new Date();
@@ -278,7 +414,7 @@
                     const diffDays = Math.floor((now - new Date(item.timestamp)) / (1000 * 60 * 60 * 24));
                     if (diffDays > 7 && !this.notifiedIds.has(item.id)) {
                         this.notifiedIds.add(item.id);
-                        this.addBubble(`⏰ **Reminder:** "${item.topic}" has been waiting for you for 7 days!`, false);
+                        this.addBubble(`⏰ **Reminder:** "${item.topic}" is waiting since 7 days!`, false);
                     }
                 });
             }
@@ -290,44 +426,66 @@
                 this.dom.countUnread.innerText = `${unread.length} Sources`;
                 this.dom.countRead.innerText = `${read.length} Sources`;
 
-                if (read.length === 0) {
-                    this.dom.cards.innerHTML = '';
+                if (read.length === 0 && unread.length === 0) {
+                    this.dom.emptyState.innerHTML = '<p class="text-slate-500 font-medium">No data yet.</p>';
                     this.dom.emptyState.classList.remove('hidden');
                 } else {
                     this.dom.emptyState.classList.add('hidden');
-                    const shuffled = read.sort(() => 0.5 - Math.random()).slice(0, 6);
-                    this.renderCards(shuffled); 
+                    if (read.length > 0) {
+                        const shuffled = read.sort(() => 0.5 - Math.random()).slice(0, 6);
+                        this.renderCards(shuffled); 
+                    } else {
+                        this.renderCards([]); 
+                        this.dom.emptyState.innerHTML = '<p class="text-slate-500 font-medium">Start reading!</p>';
+                        this.dom.emptyState.classList.remove('hidden');
+                    }
                 }
+            }
+
+            async handleExtensionImport(data) { 
+                if (!data) return; 
+                if (!this.db.user) { console.error("Not logged in"); return; }
+                await this.db.add(data); 
+                await this.loadDashboard(); 
             }
 
             async openList(type) {
                 const allData = await this.db.getAll();
-                let filteredData = [];
-                if (type === 'unread') {
-                    filteredData = allData.filter(i => !i.isRead);
-                    this.dom.listTitle.innerText = "Inbox (New)";
-                    this.dom.listSubtitle.innerText = "New sources, processing pending.";
-                } else {
-                    filteredData = allData.filter(i => i.isRead);
-                    this.dom.listTitle.innerText = "Notebook (Processed)";
-                    this.dom.listSubtitle.innerText = "Ready for Deep Dive & Chat.";
-                }
+                let filteredData = (type === 'unread') ? allData.filter(i => !i.isRead) : allData.filter(i => i.isRead);
+                this.dom.listModal.querySelector('#listTitle').innerText = type === 'unread' ? "Inbox" : "Notebook";
                 this.renderList(filteredData, type);
                 this.dom.listModal.classList.remove('hidden');
             }
+
+            renderCards(data) { 
+                this.dom.cards.innerHTML = data.map(i => {
+                    const header = (i.isYoutube && i.thumbnail) 
+                        ? `<div class="yt-thumbnail shadow-sm relative" style="background-image:url('${i.thumbnail}')"><div class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold">Video</div></div>`
+                        : `<div class="flex justify-between mb-3"><div class="w-8 h-8 rounded bg-${i.color}-50 text-${i.color}-600 flex items-center justify-center"><i class="${i.icon}"></i></div><span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold">Archive</span></div>`;
+                    return `<div class="p-4 rounded-xl border border-slate-200 bg-white hover:shadow-md transition flex flex-col h-full">${header}<h3 class="font-bold text-sm mb-1 line-clamp-2" title="${i.topic}">${i.topic}</h3><p class="text-xs text-slate-400 line-clamp-3 mb-4 flex-grow">${i.description}</p><div class="grid grid-cols-2 gap-2 mt-auto pt-3 border-t"><button onclick="app.aiAction(${i.id},'summary')" class="text-[10px] bg-slate-50 hover:bg-slate-100 py-1 rounded">📝 Info</button><button onclick="app.aiAction(${i.id},'quiz')" class="text-[10px] bg-amber-50 hover:bg-amber-100 py-1 rounded text-amber-600">❓ Quiz</button></div></div>`;
+                }).join(''); 
+            }
+
+            renderList(data, type) {
+                if(data.length===0) { this.dom.listContent.innerHTML='<div class="text-center py-10 text-slate-400">Leer.</div>'; return; }
+                this.dom.listContent.innerHTML = data.map(i => {
+                    const date = new Date(i.timestamp).toLocaleDateString();
+                    const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id},'${type}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Gelesen</button>` : `<button onclick="app.toggleRead(${i.id},'${type}')" class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Ungelesen</button>`;
+                    const ai = type==='read' ? `<button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button><button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
+                    return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
+                }).join('');
+            }
             
-            async handleExtensionImport(data) { if (!data) return; await this.db.add(data); await this.loadDashboard(); }
+            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
             async toggleRead(id, viewType) { const i=await this.db.getById(id); if(i){ i.isRead=!i.isRead; await this.db.add(i); this.openList(viewType); this.loadDashboard(); } }
             async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
             
-            // --- NOTEBOOK-STYLE PDF PARSER ---
             async handlePdfUpload(event) { 
                 const file = event.target.files[0]; if(!file) return; 
-                this.addBubble("Processing PDF as source...", true);
+                this.addBubble("Processing PDF...", true);
                 try { 
                     const p = await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; 
                     let t = `SOURCE: ${file.name}\nTYPE: PDF Document\n\n`; 
-                    
                     const max = Math.min(p.numPages, 50);
                     for(let i=1; i<=max; i++) {
                         const page = await p.getPage(i);
@@ -335,50 +493,18 @@
                         const strings = content.items.map(s => s.str).join(' ');
                         t += `--- PAGE ${i} ---\n${strings}\n\n`;
                     }
-                    
                     await this.db.add({
-                        id: Date.now(),
-                        topic: file.name.replace('.pdf',''),
-                        description: t.substring(0,150)+"...",
-                        fullText: t,
-                        icon: "fa-solid fa-file-pdf",
-                        color: "rose",
-                        timestamp: Date.now(),
-                        isPdf: true,
-                        isRead: false
+                        id: Date.now(), topic: file.name.replace('.pdf',''), description: t.substring(0,150)+"...", fullText: t,
+                        icon: "fa-solid fa-file-pdf", color: "rose", timestamp: Date.now(), isPdf: true, isRead: false, isYoutube: false
                     }); 
                     this.loadDashboard(); 
-                    this.addBubble("✅ Source added to notebook.", false); 
-                } catch(e){ this.addBubble("❌ PDF Error", false); } 
-            }
-
-            renderList(data, type) {
-                if(data.length===0) { this.dom.listContent.innerHTML='<div class="text-center py-10 text-slate-400">Empty.</div>'; return; }
-                this.dom.listContent.innerHTML = data.map(i => {
-                    const date = new Date(i.timestamp).toLocaleDateString();
-                    const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id},'${type}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Read</button>` : `<button onclick="app.toggleRead(${i.id},'${type}')" class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Unread</button>`;
-                    const ai = type==='read' ? `<button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button><button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
-                    return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
-                }).join('');
-            }
-
-            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
-
-            renderCards(data) { 
-                this.dom.cards.innerHTML = data.map(i => {
-                    const header = (i.isYoutube && i.thumbnail) 
-                        ? `<div class="yt-thumbnail shadow-sm relative" style="background-image:url('${i.thumbnail}')"><div class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold">Video</div></div>`
-                        : `<div class="flex justify-between mb-3"><div class="w-8 h-8 rounded bg-${i.color}-50 text-${i.color}-600 flex items-center justify-center"><i class="${i.icon}"></i></div><span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold">Archive</span></div>`;
-                    
-                    return `<div class="p-4 rounded-xl border border-slate-200 bg-white hover:shadow-md transition flex flex-col h-full">${header}<h3 class="font-bold text-sm mb-1 line-clamp-2" title="${i.topic}">${i.topic}</h3><p class="text-xs text-slate-400 line-clamp-3 mb-4 flex-grow">${i.description}</p><div class="grid grid-cols-2 gap-2 mt-auto pt-3 border-t"><button onclick="app.aiAction(${i.id},'summary')" class="text-[10px] bg-slate-50 hover:bg-slate-100 py-1 rounded">📝 Info</button><button onclick="app.aiAction(${i.id},'quiz')" class="text-[10px] bg-amber-50 hover:bg-amber-100 py-1 rounded text-amber-600">❓ Quiz</button></div></div>`;
-                }).join(''); 
+                    this.addBubble("✅ PDF Added.", false); 
+                } catch(e){ console.error(e); this.addBubble("❌ PDF Error", false); } 
             }
 
             async handleInput(t=null){const text=t||this.dom.input.value.trim();if(!text)return;if(!t)this.dom.input.value='';this.addBubble(text,true);this.showLoading(true);try{const r=await this.ai.call(text);this.addBubble(r,false);}catch(e){this.addBubble("Error: "+e.message,false);}this.showLoading(false);}
-            
             async aiAction(id, type) { 
                 const i=await this.db.getById(id); 
-                // SMART CONTEXT BUILDING
                 const c=i.isYoutube ? `VIDEO CONTEXT:\nTitle:${i.topic}\nSubtitles:${i.fullText}\n` : `TEXT CONTEXT:\n${i.fullText.substring(0,10000)}\n`;
                 const p=type==='quiz'?`${c}\nCreate a multiple-choice quiz based on this source. JSON Format.`:`${c}\nSummarize the key insights of this source. Cite page numbers (Page X) if possible.`;
                 this.handleInput(p);
@@ -387,6 +513,7 @@
             addBubble(t,u){const d=document.createElement('div');d.className=`flex w-full ${u?'justify-end':'justify-start'} message-enter`;d.innerHTML=`<div class="${u?'bg-slate-100':'prose prose-slate'} px-4 py-2 rounded-lg max-w-[85%]">${u?t:marked.parse(t)}</div>`;this.dom.chat.appendChild(d);}
             showLoading(s){const e=document.getElementById('loader');if(e)e.remove();if(s){const d=document.createElement('div');d.id='loader';d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';this.dom.chat.appendChild(d);}}
             viewDatabase() { this.openList('read'); }
+            async downloadBackup() { alert("Feature in Cloud-Version deaktiviert (Daten sind sicher in Supabase)."); }
         }
         window.app = new DashboardApp();
     </script>
