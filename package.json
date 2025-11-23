@@ -1,6 +1,7 @@
 {
   "name": "echomind-gemini",
   "version": "1.0.0",
+  "type": "module",  
   "dependencies": {
     "@google/generative-ai": "^0.1.3",
     "@supabase/supabase-js": "^2.39.0"
