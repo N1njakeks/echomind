@@ -1,9 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialisiere Gemini mit dem Key aus Vercel
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
 
-// Hilfsfunktion: Body Parsing (Wichtig für Vercel!)
 async function parseBody(req) {
     if (req.body) return req.body;
     try {
@@ -15,62 +13,62 @@ async function parseBody(req) {
 }
 
 export default async function handler(req, res) {
-  // 1. Nur POST erlauben
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).send('Nur POST erlaubt');
+
+  const body = await parseBody(req);
+  const { query, context_content } = body; 
+
+  if (!query) return res.status(400).json({ message: "Keine Frage." });
 
   try {
-    // 2. Daten auspacken
-    const body = await parseBody(req);
-    const { query, context_content } = body; // Wir erwarten 'context_content' vom Frontend
-
-    if (!query) {
-        return res.status(400).json({ message: "Keine Frage empfangen." });
-    }
-
-    // 3. Prompt bauen (Simpel: Text + Frage)
-    // Wir kürzen den Kontext sicherheitshalber auf 30.000 Zeichen, damit Gemini nicht explodiert
-    const safeContext = context_content ? context_content.substring(0, 30000) : "";
+    // 1. Kontext kürzen (Sicherheit gegen Abstürze bei riesigen PDFs)
+    const contextText = context_content ? context_content.substring(0, 30000) : "";
     
     const systemPrompt = `
-    Du bist ein hilfreicher Lern-Assistent.
-    Beantworte die Frage des Nutzers basierend auf den folgenden Notizen.
-    Wenn die Notizen leer sind, nutze dein Allgemeinwissen.
-    
-    NOTIZEN:
-    ${safeContext}
+    Du bist ein Lern-Assistent.
+    Antworte basierend auf diesen Notizen.
+    Notizen: ${contextText}
     `;
 
-    // 4. Modell initialisieren (WICHTIG: Hier war vorhin der Fehler!)
-    // Wir nutzen 'gemini-1.5-flash', das ist stabil und schnell.
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        systemInstruction: systemPrompt
-    });
+    // 2. Modell: Wir nehmen 'gemini-pro' (Das funktioniert immer)
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    // 5. Prüfen: Ist es ein Quiz?
+    // 3. Quiz Erkennung
     const isQuiz = query.toLowerCase().includes('quiz');
 
     if (isQuiz) {
-        const quizPrompt = `Erstelle ein Quiz basierend auf dem Kontext als reines JSON: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }`;
+        const quizPrompt = `
+        Basierend auf den Notizen, erstelle ein Multiple-Choice-Quiz.
+        Antworte AUSSCHLIESSLICH mit gültigem JSON. Kein Markdown, kein Text davor/danach.
+        Format: { "question": "Frage?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Erklärung" }
         
-        const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: quizPrompt }] }],
-            generationConfig: { responseMimeType: "application/json" } // Erzwingt JSON
-        });
+        Frage: ${query}
+        `;
         
-        const responseText = result.response.text();
-        return res.status(200).json({ quizJSON: JSON.parse(responseText) });
+        const result = await model.generateContent(systemPrompt + "\n" + quizPrompt);
+        let text = result.response.text();
+        
+        // Bereinigung: Markdown entfernen, falls Gemini es trotzdem sendet
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        try {
+            const json = JSON.parse(text);
+            return res.status(200).json({ quizJSON: json });
+        } catch (e) {
+            // Fallback: Wenn JSON kaputt ist, senden wir es als Text
+            return res.status(200).json({ answer: text });
+        }
     }
 
-    // 6. Normaler Chat
-    const result = await model.generateContent(query);
+    // 4. Normaler Chat
+    const chatPrompt = `${systemPrompt}\n\nUser: ${query}\nAI:`;
+    const result = await model.generateContent(chatPrompt);
     const responseText = result.response.text();
     
     return res.status(200).json({ answer: responseText });
 
   } catch (error) {
-    console.error("BACKEND ERROR:", error);
-    // Wir schicken den echten Fehler zurück, damit du ihn im Browser siehst (F12 -> Netzwerk)
-    return res.status(500).json({ message: "Server Error", details: error.message });
+    console.error("API ERROR:", error);
+    return res.status(500).json({ message: "Backend Fehler", details: error.message });
   }
 }
