@@ -18,6 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
     <style>
@@ -144,7 +145,7 @@
             <div id="authError" class="text-red-500 text-xs mt-4 hidden"></div>
         </div>
     </div>
-    
+
     <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
@@ -173,7 +174,7 @@
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
-        // --- PROMPT TEMPLATES (WICHTIG!) ---
+        // --- PROMPT TEMPLATES (FÜR FUNKTIONALITÄT) ---
         const PROMPT_TEMPLATES = {
             summary: (context, title) => {
                 const cleanText = (context || "").substring(0, 500000); 
@@ -516,7 +517,7 @@
                     if (element) {
                         element.scrollIntoView({ behavior: 'auto', block: 'start' });
                         element.classList.add('highlight-section');
-                        this.dom.sourcePage.innerText = `Page ${pageNum}`;
+                            this.dom.sourcePage.innerText = `Page ${pageNum}`;
                     }
                 }, 100);
             }
