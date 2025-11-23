@@ -26,8 +26,6 @@
         .message-enter { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        .is-read { opacity: 0.6; background-color: #f8fafc; }
-        .is-read:hover { opacity: 1; background-color: white; }
         .yt-thumbnail { aspect-ratio: 16/9; background-size: cover; background-position: center; border-radius: 0.5rem; margin-bottom: 0.75rem; }
         
         .citation-btn {
@@ -52,12 +50,6 @@
             color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;
             letter-spacing: 0.1em; text-align: center; scroll-margin-top: 120px;
         }
-
-        .highlight-section { animation: highlight-pulse 3s ease-out forwards; background-color: rgba(253, 224, 71, 0.3); }
-        @keyframes highlight-pulse { 0% { background-color: rgba(253, 224, 71, 0.8); } 100% { background-color: transparent; } }
-        
-        .katex { font-size: 1.1em; }
-        @media (max-width: 640px) { .mobile-hide { display: none; } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -71,6 +63,9 @@
             <div id="userInfo" class="text-xs font-medium text-slate-500 hidden sm:block"></div>
             <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
                 <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-indigo-600 transition border border-slate-200 rounded px-2 py-1 ml-1" title="AI Settings">
+                <i class="fa-solid fa-robot"></i>
             </button>
         </div>
     </nav>
@@ -152,6 +147,16 @@
         </div>
     </div>
 
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center relative animate-fade-in">
+            <button onclick="document.getElementById('apiKeyModal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-xl font-bold text-slate-800 mb-2">AI Setup</h2>
+            <p class="text-sm text-slate-500 mb-6">Enter Gemini API Key (stored locally).</p>
+            <input type="password" id="aiKey" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm outline-none" placeholder="AIzaSy...">
+            <button onclick="app.saveAiKey()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition">Save Key</button>
+        </div>
+    </div>
+
     <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
@@ -176,212 +181,360 @@
     </div>
 
     <script>
-        class APIClient {
-            async request(endpoint, method = 'GET', body = null) {
-                const options = { method, headers: { 'Content-Type': 'application/json' } };
-                if (body) options.body = JSON.stringify(body);
-                const response = await fetch(`/api/${endpoint}`, options);
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'API Error');
-                }
-                return response.json();
+        // --- SICHERHEITSHINWEIS: Dieser Code ist nur für den Prototyp/das Debugging gedacht. ---
+        // Er verwendet den ungeschützten ANONYMOUS Key (unten) und ist daher nicht produktiv sicher.
+        // Der sichere Weg ist der Umbau auf die Vercel-API.
+
+        // Supabase Keys: Muss für den Client-Zugriff beibehalten werden
+        const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
+
+        // --- PROMPT ENGINEERING ---
+        const PROMPT_TEMPLATES = {
+            summary: (context, title) => `
+                Analyze the following content from "${title}".
+                Summarize the key points concisely. 
+                
+                FORMATTING RULES:
+                1. Use LaTeX for math: $E=mc^2$ (inline) or $$E=mc^2$$ (block).
+                2. IMPORTANT: Cite page numbers for every fact using this exact format: [[Page 5]].
+                
+                CONTENT:
+                ${context}
+            `,
+            quiz: (context, title) => `
+                Create a multiple-choice question based on "${title}".
+                
+                FORMATTING RULES:
+                1. Return valid JSON.
+                2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac".
+                3. Explanation must cite the page number: [[Page X]].
+                
+                JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
+                
+                CONTENT:
+                ${context}
+            `
+        };
+
+        class SupabaseDB {
+            constructor() { this.client = null; this.tableName = 'items'; this.user = null; }
+            init() { if (SUPABASE_URL && SUPABASE_KEY) { this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); return true; } return false; }
+            async checkUser() { const { data: { session } } = await this.client.auth.getSession(); this.user = session?.user || null; return this.user; }
+            async login(email, password) { const { data, error } = await this.client.auth.signInWithPassword({ email, password }); if (error) throw error; this.user = data.user; return this.user; }
+            async signup(email, password) { const { data, error } = await this.client.auth.signUp({ email, password }); if (error) throw error; return data.user; }
+            async logout() { await this.client.auth.signOut(); this.user = null; }
+            toRow(item) { return { id: item.id, user_id: this.user.id, topic: item.topic, description: item.description, full_text: item.fullText, icon: item.icon, color: item.color, timestamp: item.timestamp, is_pdf: item.isPdf, is_youtube: item.isYoutube, is_read: item.isRead, thumbnail: item.thumbnail, url: item.url, transcript_status: item.transcriptStatus }; }
+            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcript_status: row.transcript_status }; }
+            async getAll() { if (!this.client || !this.user) return []; const { data, error } = await this.client.from(this.tableName).select('*').order('timestamp', { ascending: false }); if (error) return []; return data.map(this.fromRow); }
+            async add(item) { if (!this.client || !this.user) return; const row = this.toRow(item); await this.client.from(this.tableName).upsert(row); }
+            async getById(id) { if (!this.client) return null; const { data } = await this.client.from(this.tableName).select('*').eq('id', id).single(); return data ? this.fromRow(data) : null; }
+            async delete(id) { if (!this.client) return; await this.client.from(this.tableName).delete().eq('id', id); }
+        }
+
+        class AIService {
+            constructor() { this.key = ""; } 
+            loadKey(userId) { this.key = localStorage.getItem(`gemini_key_${userId}`) || ""; }
+            saveKey(userId, key) { this.key = key; localStorage.setItem(`gemini_key_${userId}`, key); }
+            hasKey() { return !!this.key; }
+            async call(prompt, isJson = false) {
+                if (!this.key) throw new Error("MISSING_KEY");
+                const body = { contents: [{ parts: [{ text: prompt }] }] };
+                if (isJson) body.generationConfig = { responseMimeType: "application/json" };
+                try {
+                    // Direkter Aufruf der Gemini API (UNSICHER FÜR PROD)
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.key}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    if(!response.ok) throw new Error("API Error: " + response.status);
+                    const data = await response.json();
+                    return data.candidates[0].content.parts[0].text;
+                } catch (e) { throw e; }
             }
         }
 
         class DashboardApp {
             constructor() {
-                this.api = new APIClient();
+                this.db = new SupabaseDB();
+                this.ai = new AIService();
                 this.currentData = [];
-                this.user = null;
+                this.notifiedIds = new Set();
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'),
-                    chat: document.getElementById('chatContainer'),
-                    cards: document.getElementById('cardsContainer'),
-                    emptyState: document.getElementById('emptyState'),
-                    pdfInput: document.getElementById('pdfInput'),
-                    authModal: document.getElementById('authModal'),
-                    emailInput: document.getElementById('emailInput'),
-                    passInput: document.getElementById('passwordInput'),
-                    authError: document.getElementById('authError'),
-                    userInfo: document.getElementById('userInfo'),
-                    listModal: document.getElementById('listModal'),
-                    listTitle: document.getElementById('listTitle'),
-                    listContent: document.getElementById('listContent'),
-                    countUnread: document.getElementById('countUnread'),
-                    countRead: document.getElementById('countRead'),
-                    sourceModal: document.getElementById('sourceModal'),
-                    sourceTitle: document.getElementById('sourceTitle'),
-                    sourcePage: document.getElementById('sourcePage'),
-                    sourceContent: document.getElementById('sourceContent'),
-                    contextBar: document.getElementById('contextBar'),
-                    contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
                 this.dom.input.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleInput(); } };
+                this.dom.input.oninput = function() { this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'; };
                 this.dom.pdfInput.onchange = (e) => this.handlePdfUpload(e);
-                
-                this.checkSession();
+                this.init();
             }
 
-            async checkSession() {
-                const storedUser = localStorage.getItem('echomind_user');
-                if (storedUser) {
-                    this.user = JSON.parse(storedUser);
-                    this.onLoginSuccess(this.user);
-                } else {
-                    this.dom.authModal.classList.remove('hidden');
-                }
+            async init() {
+                this.db.init();
+                const user = await this.db.checkUser();
+                if (user) this.onLoginSuccess(user);
+                else this.dom.authModal.classList.remove('hidden');
             }
 
             async login() {
                 const email = this.dom.emailInput.value.trim();
-                const password = this.dom.passInput.value.trim();
-                try {
-                    const data = await this.api.request('auth/login', 'POST', { email, password });
-                    this.user = data.user;
-                    localStorage.setItem('echomind_user', JSON.stringify(this.user));
-                    this.onLoginSuccess(this.user);
-                } catch(e) {
-                    this.dom.authError.innerText = "Failed: " + e.message;
-                    this.dom.authError.classList.remove('hidden');
-                }
+                const pass = this.dom.passInput.value.trim();
+                try { const user = await this.db.login(email, pass); this.onLoginSuccess(user); } 
+                catch(e) { this.dom.authError.innerText = "Failed: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
-
             async signup() {
                 const email = this.dom.emailInput.value.trim();
-                const password = this.dom.passInput.value.trim();
-                try {
-                    await this.api.request('auth/signup', 'POST', { email, password });
-                    alert("Account created! Please check email.");
-                } catch(e) {
-                    this.dom.authError.innerText = "Error: " + e.message;
-                    this.dom.authError.classList.remove('hidden');
-                }
+                const pass = this.dom.passInput.value.trim();
+                try { await this.db.signup(email, pass); alert("Please check email to verify account!"); } 
+                catch(e) { this.dom.authError.innerText = "Error: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
-
-            logout() { localStorage.removeItem('echomind_user'); location.reload(); }
-
+            async logout() { await this.db.logout(); location.reload(); }
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
+                this.ai.loadKey(user.id);
+                if (!this.ai.hasKey()) this.showKeyModal();
                 this.loadDashboard();
+                this.startClock();
+            }
+            showKeyModal() { this.dom.keyModal.classList.remove('hidden'); this.dom.aiKey.value = this.ai.key || ""; }
+            saveAiKey() { const key = this.dom.aiKey.value.trim(); if(key && this.db.user) { this.ai.saveKey(this.db.user.id, key); this.dom.keyModal.classList.add('hidden'); this.addBubble("✅ API Key saved.", false); } }
+
+            startClock() { setInterval(() => { if(this.currentData.length > 0) this.checkReminders(); }, 5000); }
+            checkReminders() {
+                const now = new Date();
+                this.currentData.forEach(item => {
+                    if (item.isRead) return;
+                    const diffDays = Math.floor((now - new Date(item.timestamp)) / (1000 * 60 * 60 * 24));
+                    if (diffDays > 7 && !this.notifiedIds.has(item.id)) {
+                        this.notifiedIds.add(item.id);
+                        this.addBubble(`⏰ Reminder: "${item.topic}" pending since 7 days!`, false);
+                    }
+                });
             }
 
             async loadDashboard() { 
-                try {
-                    const data = await this.api.request(`items?user_id=${this.user.id}`);
-                    this.currentData = data;
-                    const unread = this.currentData.filter(i => !i.is_read);
-                    const read = this.currentData.filter(i => i.is_read);
-                    this.dom.countUnread.innerText = `${unread.length} Sources`;
-                    this.dom.countRead.innerText = `${read.length} Sources`;
-                    if (read.length === 0 && unread.length === 0) this.dom.emptyState.classList.remove('hidden');
-                    else {
-                        this.dom.emptyState.classList.add('hidden');
-                        if (read.length > 0) this.renderCards(read.sort(() => 0.5 - Math.random()).slice(0, 6)); 
-                        else this.renderCards([]); 
-                    }
-                } catch(e) { console.error("Error loading dashboard:", e); }
+                this.currentData = await this.db.getAll(); 
+                const unread = this.currentData.filter(i => !i.isRead);
+                const read = this.currentData.filter(i => i.isRead);
+                this.dom.countUnread.innerText = `${unread.length} Sources`;
+                this.dom.countRead.innerText = `${read.length} Sources`;
+                
+                if (read.length === 0 && unread.length === 0) {
+                    this.dom.emptyState.classList.remove('hidden');
+                } else {
+                    this.dom.emptyState.classList.add('hidden');
+                    if (read.length > 0) {
+                        const shuffled = read.sort(() => 0.5 - Math.random()).slice(0, 6);
+                        this.renderCards(shuffled); 
+                    } else { this.renderCards([]); }
+                }
+            }
+
+            async openList(type) {
+                const allData = await this.db.getAll();
+                let filteredData = (type === 'unread') ? allData.filter(i => !i.isRead) : allData.filter(i => i.isRead);
+                this.dom.listModal.querySelector('#listTitle').innerText = type === 'unread' ? "Inbox" : "Notebook";
+                this.renderList(filteredData, type);
+                this.dom.listModal.classList.remove('hidden');
             }
 
             async handlePdfUpload(event) { 
-                const file = event.target.files[0]; 
-                if(!file) return; 
+                const file = event.target.files[0]; if(!file) return; 
                 this.addBubble("Processing PDF...", true);
                 try { 
                     const p = await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; 
-                    let fullText = `SOURCE: ${file.name}\nTYPE: PDF Document\n\n`; 
+                    let t = `SOURCE: ${file.name}\nTYPE: PDF Document\n\n`; 
                     for(let i=1; i<=p.numPages; i++) {
                         const page = await p.getPage(i);
                         const content = await page.getTextContent();
                         const strings = content.items.map(s => s.str).join(' ');
-                        fullText += `\n\n[[PAGE ${i}]]\n${strings}`; 
+                        t += `\n\n[[PAGE ${i}]]\n${strings}`; 
                     }
-                    await this.api.request('save-item', 'POST', { user_id: this.user.id, topic: file.name.replace('.pdf',''), full_text: fullText, is_pdf: true });
+                    await this.db.add({
+                        id: Date.now(), topic: file.name.replace('.pdf',''), description: t.substring(0,150)+"...", fullText: t,
+                        icon: "fa-solid fa-file-pdf", color: "rose", timestamp: Date.now(), isPdf: true, isRead: false, isYoutube: false
+                    }); 
                     this.loadDashboard(); 
-                    this.addBubble(`✅ Added PDF (${p.numPages} pages) & indexed.`, false); 
-                } catch(e){ 
-                    console.error(e); this.addBubble("❌ PDF Error: " + e.message, false); 
-                } 
+                    this.addBubble(`✅ Added PDF (${p.numPages} pages).`, false); 
+                } catch(e){ console.error(e); this.addBubble("❌ PDF Error: " + e.message, false); } 
+            }
+
+            // --- CITATION VIEWER (FIXED: ROBUST REGEX) ---
+            openSourceContext(pageNum) {
+                if (!this.activeCitationItem) return;
+                const item = this.activeCitationItem;
+                
+                this.dom.sourceTitle.innerText = item.topic;
+                this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
+                this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
+                this.dom.sourceContent.scrollTop = 0;
+                this.dom.sourceModal.classList.remove('hidden');
+
+                setTimeout(() => {
+                    let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+                    
+                    rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
+                    rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
+
+                    this.dom.sourceContent.innerHTML = rawHtml;
+
+                    let attempts = 0;
+                    const scrollInterval = setInterval(() => {
+                        const element = document.getElementById(`page-${pageNum}`);
+                        attempts++;
+                        if (element) {
+                            clearInterval(scrollInterval);
+                            element.scrollIntoView({ behavior: 'auto', block: 'start' });
+                            element.classList.add('highlight-section');
+                            this.dom.sourcePage.innerText = `Page ${pageNum}`;
+                        } else if (attempts > 20) {
+                            clearInterval(scrollInterval);
+                            this.dom.sourcePage.innerText = `Page ${pageNum} not found`;
+                        }
+                    }, 100);
+                }, 50);
+            }
+
+            async setContext(id) {
+                const item = await this.db.getById(id);
+                if (item) {
+                    this.activeCitationItem = item;
+                    this.dom.contextName.innerText = item.topic;
+                    this.dom.contextBar.classList.remove('hidden');
+                    this.dom.listModal.classList.add('hidden');
+                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
+                }
+                return item;
+            }
+
+            clearContext() {
+                this.activeCitationItem = null;
+                this.dom.contextBar.classList.add('hidden');
+                this.addBubble("📂 Context cleared.", false);
             }
 
             async handleInput(t=null){
-                const text = t || this.dom.input.value.trim(); 
-                if(!text) return; 
-                if(!t) this.dom.input.value=''; 
-                this.addBubble(text, true);
+                const text=t||this.dom.input.value.trim(); if(!text)return; 
+                if(!t)this.dom.input.value=''; 
+                this.addBubble(text,true);
+                
+                let prompt = text;
+                if (this.activeCitationItem) {
+                    const i = this.activeCitationItem;
+                    const contextLimit = 500000; // Original high limit
+                    const content = (i.fullText || "").substring(0, contextLimit); // Send entire text
+                    prompt = `
+                        You are an assistant helping with the source: "${i.topic}".
+                        SOURCE CONTENT:
+                        ${content}
+                        USER QUESTION:
+                        ${text}
+                        INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.
+                    `;
+                }
+                this.processAI(prompt);
+            }
+            
+            async processAI(text) {
                 this.showLoading(true);
+                try { 
+                    const res = await this.ai.call(text); 
+                    this.addBubble(res, false); 
+                } 
+                catch(e) { if(e.message==="MISSING_KEY"){this.showKeyModal();}else{this.addBubble("❌ AI Error: " + e.message,false);} }
+                this.showLoading(false);
+            }
+
+            async aiAction(id, type) { 
                 try {
-                    // Calls the Vercel API for RAG Chat
-                    const response = await this.api.request('chat', 'POST', {
-                        query: text,
-                        user_id: this.user.id,
-                        context_item_id: this.activeCitationItem ? this.activeCitationItem.id : null
-                    });
-                    this.showLoading(false);
-                    if (response.quizJSON) this.renderQuiz(response.quizJSON);
-                    else this.addBubble(response.answer, false);
+                    const i = await this.setContext(id); 
+                    if (!i) return;
+
+                    const cleanText = (i.fullText || "").substring(0, 500000); 
+                    let prompt = "", display = "";
+
+                    if (type === 'summary') {
+                         prompt = PROMPT_TEMPLATES.summary(cleanText, i.topic);
+                         display = `📝 Summarize`;
+                    } else {
+                         prompt = PROMPT_TEMPLATES.quiz(cleanText, i.topic);
+                         display = `❓ Generate Quiz`;
+                    }
+
+                    if(type==='quiz') {
+                        await this.processHiddenPrompt(display, prompt, true);
+                    } else {
+                        await this.processHiddenPrompt(display, prompt);
+                    }
                 } catch(e) {
-                    this.showLoading(false);
-                    this.addBubble("❌ Error: " + e.message, false);
+                    this.addBubble("❌ System Error: " + e.message, false);
                 }
             }
-
-            async aiAction(id, type) {
-                this.activeCitationItem = this.currentData.find(i => i.id === id);
-                await this.handleInput(type === 'summary' ? "Summarize this document" : "Create a quiz for this document");
-            }
-
-            addBubble(text, isUser) {
-                const d = document.createElement('div');
-                d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
-                let html = isUser ? text : marked.parse(text);
-                if(!isUser) html = html.replace(/(?:\[+|\[|\(|^|\s)Page\s*(\d+)(?:\]+|\)|\]|\.|,|$)/gi, ` <button class="citation-btn" onclick="app.openSourceContext($1)">Page $1</button> `);
-                d.innerHTML = `<div class="${isUser?'bg-slate-100':'prose prose-slate'} px-4 py-2 rounded-lg max-w-[85%] shadow-sm border border-slate-100">${html}</div>`;
-                this.dom.chat.appendChild(d);
-                this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
-            }
-
-            renderQuiz(d){
-                const v=document.createElement('div'); v.className="flex gap-4 w-full message-enter";
-                const qHtml = marked.parse(d.question);
-                v.innerHTML=`<div class="w-full max-w-md bg-white border rounded-xl p-4 shadow-sm"><div class="font-bold text-sm mb-4 prose prose-slate">${qHtml}</div><div id="opts" class="space-y-2"></div><div id="res" class="hidden mt-4 text-sm p-3 bg-slate-50 rounded-lg border border-slate-100"></div></div>`;
-                const o=v.querySelector('#opts');
-                d.options.forEach((opt,i)=>{
-                    const b=document.createElement('button');
-                    b.className="w-full text-left text-sm p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all";
-                    b.innerHTML = marked.parseInline(opt);
-                    b.onclick=()=>{
-                        const allBtns = o.querySelectorAll('button'); allBtns.forEach(btn => btn.disabled = true);
-                        const isCorrect = i===d.correctIndex;
-                        b.className = isCorrect ? "w-full text-left text-sm p-3 border border-emerald-500 bg-emerald-50 text-emerald-700 rounded-xl font-medium shadow-sm" : "w-full text-left text-sm p-3 border border-red-500 bg-red-50 text-red-700 rounded-xl";
-                        if(!isCorrect && allBtns[d.correctIndex]) allBtns[d.correctIndex].className = "w-full text-left text-sm p-3 border border-emerald-500 bg-emerald-50 text-emerald-700 rounded-xl font-medium";
-                        const resDiv = v.querySelector('#res');
-                        resDiv.innerHTML=(isCorrect?"<div class='text-emerald-600 font-bold mb-2'>Correct! 🎉</div>":"<div class='text-red-600 font-bold mb-2'>Incorrect</div>")+`<div class="prose prose-sm text-slate-600">${marked.parse(d.explanation)}</div>`;
-                        resDiv.classList.remove('hidden');
-                    };
-                    o.appendChild(b);
-                });
-                this.dom.chat.appendChild(v);
-                this.dom.chat.scrollTop=this.dom.chat.scrollHeight;
-            }
-
-            showLoading(s){ const e=document.getElementById('loader'); if(e) e.remove(); if(s){ const d=document.createElement('div'); d.id='loader'; d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>'; this.dom.chat.appendChild(d); }}
-            openList(type) { const data = type === 'unread' ? this.currentData.filter(i => !i.is_read) : this.currentData.filter(i => i.is_read); this.dom.listModal.querySelector('#listTitle').innerText = type === 'unread' ? "Inbox" : "Notebook"; this.renderList(data, type); this.dom.listModal.classList.remove('hidden'); }
-            renderList(data, type) { if(data.length===0) { this.dom.listContent.innerHTML='<div class="text-center py-10 text-slate-400">Empty.</div>'; return; } this.dom.listContent.innerHTML = data.map(i => { const date = new Date(i.timestamp).toLocaleDateString(); const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id})" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Read</button>` : `<button class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Read</button>`; const ai = type==='read' ? `<button onclick="app.setContext(${i.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs mr-2 font-bold">Chat</button> <button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button> <button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : ''; return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`; }).join(''); }
-            renderCards(data) { this.dom.cards.innerHTML = data.map(i => { const icon = i.is_pdf ? "fa-solid fa-file-pdf" : "fa-solid fa-file-lines"; return `<div class="p-4 rounded-xl border border-slate-200 bg-white hover:shadow-md transition flex flex-col h-full"><div class="flex justify-between mb-3"><div class="w-8 h-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="${icon}"></i></div></div><h3 class="font-bold text-sm mb-1 line-clamp-2" title="${i.topic}">${i.topic}</h3><div class="flex gap-2 mt-auto pt-3 border-t"><button onclick="app.setContext(${i.id})" class="flex-grow text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-1.5 rounded font-bold"><i class="fa-regular fa-comments mr-1"></i> Chat</button></div></div>`; }).join(''); }
             
-            async toggleRead(id) { await this.api.request('save-item', 'POST', { id, is_read: true, user_id: this.user.id, update_only: true }); this.loadDashboard(); this.dom.listModal.classList.add('hidden'); }
-            async deleteItem(id) { if(confirm("Delete?")) { await this.api.request('items', 'DELETE', { id, user_id: this.user.id }); this.loadDashboard(); this.dom.listModal.classList.add('hidden'); } }
+            async processHiddenPrompt(visibleText, actualPrompt, jsonMode = false) {
+                this.addBubble(visibleText, true); 
+                this.showLoading(true);
+                try {
+                    const res = await this.ai.call(actualPrompt, jsonMode);
+                    this.showLoading(false);
+                    
+                    let parsedData;
+                    if(jsonMode) {
+                        try { parsedData = JSON.parse(res); } 
+                        catch(parseError) {
+                            const jsonMatch = res.match(/\{[\s\S]*\}/);
+                            if(jsonMatch) parsedData = JSON.parse(jsonMatch[0]);
+                            else throw new Error("Invalid JSON from AI");
+                        }
+                        this.renderQuiz(parsedData);
+                    } else {
+                        this.addBubble(res, false);
+                    }
+                } catch(e) {
+                    this.showLoading(false);
+                    if(e.message==="MISSING_KEY"){this.addBubble("⚠️ <b>No API Key found.</b> Click key icon 🔑.",false); this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} 
+                    throw e;
+                }
+            }
+            
+            renderCards(data) { 
+                this.dom.cards.innerHTML = data.map(i => {
+                    const header = (i.isYoutube && i.thumbnail) 
+                        ? `<div class="yt-thumbnail shadow-sm relative" style="background-image:url('${i.thumbnail}')"><div class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold">Video</div></div>`
+                        : `<div class="flex justify-between mb-3"><div class="w-8 h-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="${i.icon}"></i></div><span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold">Archive</span></div>`;
+                    return `
+                    <div class="p-4 rounded-xl border border-slate-200 bg-white hover:shadow-md transition flex flex-col h-full">
+                        ${header}
+                        <h3 class="font-bold text-sm mb-1 line-clamp-2" title="${i.topic}">${i.topic}</h3>
+                        <p class="text-xs text-slate-400 line-clamp-3 mb-4 flex-grow">${i.description}</p>
+                        <div class="flex gap-2 mt-auto pt-3 border-t">
+                             <button onclick="app.setContext(${i.id})" class="flex-grow text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-1.5 rounded font-bold"><i class="fa-regular fa-comments mr-1"></i> Chat</button>
+                             <button onclick="app.aiAction(${i.id},'summary')" class="text-[10px] bg-slate-50 hover:bg-slate-100 px-2 py-1.5 rounded text-slate-600" title="Summary"><i class="fa-solid fa-align-left"></i></button>
+                             <button onclick="app.aiAction(${i.id},'quiz')" class="text-[10px] bg-slate-50 hover:bg-slate-100 px-2 py-1.5 rounded text-slate-600" title="Quiz"><i class="fa-solid fa-question"></i></button>
+                        </div>
+                    </div>`;
+                }).join(''); 
+            }
+
+            renderList(data, type) {
+                if(data.length===0) { this.dom.listContent.innerHTML='<div class="text-center py-10 text-slate-400">Empty.</div>'; return; }
+                this.dom.listContent.innerHTML = data.map(i => {
+                    const date = new Date(i.timestamp).toLocaleDateString();
+                    const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id},'${type}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Read</button>` : `<button onclick="app.toggleRead(${i.id},'${type}')" class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Unread</button>`;
+                    const ai = type==='read' ? `
+                        <button onclick="app.setContext(${i.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs mr-2 font-bold">Chat</button>
+                        <button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button>
+                        <button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
+                    return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
+                }).join('');
+            }
+            
             async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
-            
-            setContext(id) { const item = this.currentData.find(i => i.id === id); if (item) { this.activeCitationItem = item; this.dom.contextName.innerText = item.topic; this.dom.contextBar.classList.remove('hidden'); this.dom.listModal.classList.add('hidden'); } }
-            clearContext() { this.activeCitationItem = null; this.dom.contextBar.classList.add('hidden'); }
-            openSourceContext(pageNum) { if (!this.activeCitationItem) return; const item = this.activeCitationItem; this.dom.sourceTitle.innerText = item.topic; this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`; this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>'; this.dom.sourceModal.classList.remove('hidden'); setTimeout(() => { let rawHtml = item.full_text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>'); rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>'); this.dom.sourceContent.innerHTML = rawHtml; setTimeout(() => { const element = document.getElementById(`page-${pageNum}`); if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; } }, 500); }, 50); }
+            async toggleRead(id, viewType) { const i=await this.db.getById(id); if(i){ i.isRead=!i.isRead; await this.db.add(i); this.openList(viewType); this.loadDashboard(); } }
+            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
+            async clearDatabase() { if(confirm("Delete All?")) { await this.db.clear(); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
             viewDatabase() { this.openList('read'); }
         }
         window.app = new DashboardApp();
