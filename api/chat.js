@@ -21,54 +21,46 @@ export default async function handler(req, res) {
   if (!query) return res.status(400).json({ message: "Keine Frage." });
 
   try {
-    // 1. Kontext kürzen (Sicherheit gegen Abstürze bei riesigen PDFs)
-    const contextText = context_content ? context_content.substring(0, 30000) : "";
+    // 1. Kontext
+    const contextText = context_content ? context_content.substring(0, 50000) : "";
     
     const systemPrompt = `
-    Du bist ein Lern-Assistent.
+    Du bist ein hilfreicher Lern-Assistent.
     Antworte basierend auf diesen Notizen.
     Notizen: ${contextText}
     `;
 
-    // 2. Modell: Wir nehmen 'gemini-pro' (Das funktioniert immer)
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // 2. Modell: Wir nutzen jetzt 1.5-flash (funktioniert mit dem package.json Update!)
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        systemInstruction: systemPrompt
+    });
 
-    // 3. Quiz Erkennung
+    // 3. Quiz Logik
     const isQuiz = query.toLowerCase().includes('quiz');
 
     if (isQuiz) {
         const quizPrompt = `
-        Basierend auf den Notizen, erstelle ein Multiple-Choice-Quiz.
-        Antworte AUSSCHLIESSLICH mit gültigem JSON. Kein Markdown, kein Text davor/danach.
-        Format: { "question": "Frage?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Erklärung" }
-        
-        Frage: ${query}
+        Erstelle ein Multiple-Choice-Quiz.
+        Antworte NUR mit diesem JSON Format:
+        { "question": "Frage?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Erklärung" }
         `;
         
-        const result = await model.generateContent(systemPrompt + "\n" + quizPrompt);
-        let text = result.response.text();
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: quizPrompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        });
         
-        // Bereinigung: Markdown entfernen, falls Gemini es trotzdem sendet
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        
-        try {
-            const json = JSON.parse(text);
-            return res.status(200).json({ quizJSON: json });
-        } catch (e) {
-            // Fallback: Wenn JSON kaputt ist, senden wir es als Text
-            return res.status(200).json({ answer: text });
-        }
+        const text = result.response.text();
+        return res.status(200).json({ quizJSON: JSON.parse(text) });
     }
 
     // 4. Normaler Chat
-    const chatPrompt = `${systemPrompt}\n\nUser: ${query}\nAI:`;
-    const result = await model.generateContent(chatPrompt);
-    const responseText = result.response.text();
-    
-    return res.status(200).json({ answer: responseText });
+    const result = await model.generateContent(query);
+    return res.status(200).json({ answer: result.response.text() });
 
   } catch (error) {
     console.error("API ERROR:", error);
-    return res.status(500).json({ message: "Backend Fehler", details: error.message });
+    return res.status(500).json({ message: "Fehler: " + error.message });
   }
 }
