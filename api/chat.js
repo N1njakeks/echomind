@@ -24,13 +24,13 @@ export default async function handler(req, res) {
     const contextText = context_content ? context_content.substring(0, 30000) : "";
     
     const systemPrompt = `
-    Du bist ein Lern-Assistent.
+    Du bist ein hilfreicher Lern-Assistent.
     Antworte basierend auf diesen Notizen.
     Notizen: ${contextText}
     `;
 
-    // FIX: Wir nutzen das stabile Standard-Modell
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // FIX: Mit dem neuen package.json funktioniert dieses Modell endlich!
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const isQuiz = query.toLowerCase().includes('quiz');
 
@@ -41,21 +41,20 @@ export default async function handler(req, res) {
         Frage: ${query}
         `;
         
-        const result = await model.generateContent(systemPrompt + "\n" + quizPrompt);
-        let text = result.response.text();
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: systemPrompt + "\n" + quizPrompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        });
         
-        try {
-            return res.status(200).json({ quizJSON: JSON.parse(text) });
-        } catch (e) {
-            return res.status(200).json({ answer: text });
-        }
+        const text = result.response.text();
+        return res.status(200).json({ quizJSON: JSON.parse(text) });
     }
 
     const result = await model.generateContent(systemPrompt + "\n\nUser: " + query);
     return res.status(200).json({ answer: result.response.text() });
 
   } catch (error) {
+    console.error("API ERROR:", error);
     return res.status(500).json({ message: "Backend Fehler: " + error.message });
   }
 }
