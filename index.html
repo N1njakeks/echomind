@@ -52,6 +52,13 @@
             color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;
             letter-spacing: 0.1em; text-align: center; scroll-margin-top: 120px;
         }
+        .highlight-section {
+            animation: highlight-pulse 3s ease-out forwards;
+            background-color: rgba(253, 224, 71, 0.3);
+        }
+        @keyframes highlight-pulse {
+            0% { background-color: rgba(253, 224, 71, 0.8); } 100% { background-color: transparent; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -70,6 +77,7 @@
     </nav>
 
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
+        
         <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
@@ -169,11 +177,11 @@
     </div>
 
     <script>
-        // Keys für Client-seitige Auth (Unkritisch, da RLS im Backend aktiv ist)
+        // Supabase Keys (Nur für Client-Init / Auth)
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
-        // --- PROMPTS ---
+        // --- PROMPT TEMPLATES (WICHTIG!) ---
         const PROMPT_TEMPLATES = {
             summary: (context, title) => {
                 const cleanText = (context || "").substring(0, 500000); 
@@ -185,7 +193,6 @@
             }
         };
 
-        // --- API CLIENT (Kommuniziert mit Vercel Backend) ---
         class APIClient {
             async request(endpoint, method = 'GET', body = null) {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -199,13 +206,11 @@
             }
         }
 
-        // --- DATENBANK LOGIK ---
         class SupabaseDB {
             constructor() { 
                 this.tableName = 'items'; 
                 this.user = null; 
                 this.api = new APIClient();
-                // Initialisiert Client NUR für Auth
                 this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
 
@@ -261,7 +266,7 @@
                 const data = await this.api.request(`items?user_id=${this.user.id}&id=${id}`);
                 return data.length > 0 ? this.fromRow(data[0]) : null;
             }
-            
+
             async updateReadStatus(id, isRead) {
                 if (!this.user) return;
                 await this.api.request('save-item', 'POST', {
@@ -275,23 +280,25 @@
             fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status }; }
         }
 
-        // --- AI LOGIK (KEIN KEY MEHR IM BROWSER) ---
         class AIService {
-            constructor() { this.api = new APIClient(); }
+            constructor() { } 
             
-            // Key Funktionen (Dummies, damit alter Code nicht bricht)
-            loadKey(userId) { return true; } 
-            saveKey(userId, key) { alert("API Key wird in Vercel verwaltet."); }
+            // Dummy Keys
+            loadKey(userId) {}
+            saveKey(userId, key) {}
             hasKey() { return true; }
             
-            async call(prompt, isJson = false, contextContent = null) {
+            async call(prompt, userId, isJson = false, contextContent = null) {
+                // Sicherheitscheck: UserId muss da sein
+                if (!userId) throw new Error("User ID missing for AI call");
+
                 const response = await fetch(`/api/chat`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
                     body: JSON.stringify({ 
                         query: prompt,
+                        user_id: userId,
                         is_json: isJson,
-                        // Wir senden keinen Key mehr! Das Backend nutzt process.env.GEMINI_KEY
                         context_content: contextContent 
                     }) 
                 });
@@ -315,7 +322,9 @@
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), 
+                    // keyModal/aiKey entfernt
+                    emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -343,7 +352,10 @@
             async signup() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { await this.db.signup(email, pass); alert("Please check email to verify account!"); } 
+                try { 
+                    await this.db.signup(email, pass); 
+                    alert("Please check email to verify account!"); 
+                } 
                 catch(e) { this.dom.authError.innerText = "Error: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async logout() { this.db.logout(); location.reload(); }
@@ -354,6 +366,7 @@
                 this.loadDashboard();
                 this.startClock();
             }
+            
             showKeyModal() { alert("AI Settings werden vom Server verwaltet."); }
             saveAiKey() { }
 
@@ -376,6 +389,7 @@
                 } catch(e) {
                     this.currentData = [];
                     console.error(e);
+                    this.addBubble("⚠️ Konnte Daten nicht laden. Server Fehler.", false);
                 }
                 const unread = this.currentData.filter(i => !i.isRead);
                 const read = this.currentData.filter(i => i.isRead);
@@ -431,21 +445,34 @@
                 let contextContent = null; 
 
                 if (this.activeCitationItem) {
-                    const i = this.currentData.find(item => item.id === this.activeCitationItem.id); 
-                    if (i) {
-                        const contextLimit = 500000; 
-                        contextContent = (i.fullText || "").substring(0, contextLimit);
-                        prompt = `You are an assistant helping with the source: "${i.topic}". SOURCE CONTENT: ${contextContent} USER QUESTION: ${text} INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.`;
-                    }
+                    let i = this.activeCitationItem;
+                    // Daten sicherheitshalber frisch aus der Liste holen
+                    const freshItem = this.currentData.find(item => item.id === i.id);
+                    if(freshItem) i = freshItem;
+
+                    const contextLimit = 500000; 
+                    contextContent = (i.fullText || "").substring(0, contextLimit);
+                    
+                    prompt = `
+                        You are an assistant helping with the source: "${i.topic}".
+                        SOURCE CONTENT:
+                        ${contextContent}
+                        USER QUESTION:
+                        ${text}
+                        INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.
+                    `;
                 }
+                
                 this.processAI(prompt, false, contextContent);
             }
             
             async processAI(text, isJson = false, contextContent = null) {
                 this.showLoading(true);
                 try { 
-                    const res = await this.ai.call(text, isJson, contextContent); 
+                    const res = await this.ai.call(text, this.db.user.id, isJson, contextContent); 
+                    
                     this.showLoading(false);
+
                     if (isJson) {
                          this.addBubble("❓ Quiz", true);
                          this.renderQuiz(res);
@@ -454,13 +481,14 @@
                     }
                 } 
                 catch(e) { 
-                    this.showLoading(false); 
-                    this.addBubble("❌ Error: " + e.message, false); 
+                    this.showLoading(false);
+                    this.addBubble("❌ Error connecting to AI: " + e.message, false); 
                 }
             }
 
             async aiAction(id, type) { 
                 try {
+                    // Item holen
                     const i = await this.db.getById(id);
                     if (!i) return;
                     this.setContext(id);
@@ -486,28 +514,22 @@
                 }
             }
 
-            // --- UI HELPERS ---
             async toggleRead(id, viewType) { 
-                await this.db.updateReadStatus(id, true); // Status wechseln nicht implementiert, setze auf true
-                this.openList(viewType); 
-                this.loadDashboard(); 
+                const i = await this.db.getById(id); 
+                if(i) { 
+                    const newStatus = !i.isRead;
+                    await this.db.updateReadStatus(id, newStatus);
+                    this.openList(viewType); 
+                    this.loadDashboard(); 
+                } 
             }
-            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
-            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
-            
-            setContext(id) { 
-                const item = this.currentData.find(item => item.id === id);
-                if (item) {
-                    this.activeCitationItem = item;
-                    this.dom.contextName.innerText = item.topic;
-                    this.dom.contextBar.classList.remove('hidden');
-                    this.dom.listModal.classList.add('hidden');
-                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
-                }
-                return item;
+            async deleteItem(id) { 
+                if(confirm("Delete?")) { 
+                    await this.db.delete(id); 
+                    this.dom.listModal.classList.add('hidden'); 
+                    this.loadDashboard(); 
+                } 
             }
-            clearContext() { this.activeCitationItem = null; this.dom.contextBar.classList.add('hidden'); this.addBubble("📂 Context cleared.", false); }
-            viewDatabase() { this.openList('read'); }
             
             showLoading(s){
                 const e=document.getElementById('loader'); if(e) e.remove();
@@ -536,8 +558,23 @@
                         if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } 
                         else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; }
                     }, 500);
-                }, 50);
+                }, 100);
             }
+            
+            setContext(id) { 
+                const item = this.currentData.find(item => item.id === id);
+                if (item) {
+                    this.activeCitationItem = item;
+                    this.dom.contextName.innerText = item.topic;
+                    this.dom.contextBar.classList.remove('hidden');
+                    this.dom.listModal.classList.add('hidden');
+                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
+                }
+                return item;
+            }
+            clearContext() { this.activeCitationItem = null; this.dom.contextBar.classList.add('hidden'); this.addBubble("📂 Context cleared.", false); }
+            viewDatabase() { this.openList('read'); }
+            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
 
             addBubble(text, isUser) {
                 const d = document.createElement('div');
