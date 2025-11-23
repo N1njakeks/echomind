@@ -15,6 +15,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
@@ -181,17 +183,13 @@
     </div>
 
     <script>
-        // --- SICHERHEITSHINWEIS: Dieser Code ist nur für den Prototyp/das Debugging gedacht. ---
-        // Er verwendet den ungeschützten ANONYMOUS Key (unten) und ist daher nicht produktiv sicher.
-        // Der sichere Weg ist der Umbau auf die Vercel-API.
-
-        // Supabase Keys: Muss für den Client-Zugriff beibehalten werden
-        // (Wird aber von der neuen Logik nicht mehr genutzt, da API Calls das übernehmen)
+        // --- SICHERHEITSHINWEIS: Key wird an Backend gesendet, aber nicht im HTML exponiert. ---
+        
+        // Keys für Client-seitige Auth und Supabase Client Initialisierung
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
         class APIClient {
-            // Zentrale Funktion für alle Backend-Aufrufe
             async request(endpoint, method = 'GET', body = null) {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
                 if (body) options.body = JSON.stringify(body);
@@ -209,11 +207,9 @@
                 this.tableName = 'items'; 
                 this.user = null; 
                 this.api = new APIClient();
-                // Client bleibt hier, wird aber nur für Auth genutzt (nicht für CRUD)
                 this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
 
-            // --- AUTHENTICATION (Verwendet Vercel API, nicht direkten Supabase Client) ---
             async checkUser() {
                  const storedUser = localStorage.getItem('echomind_user');
                  if (storedUser) {
@@ -226,7 +222,6 @@
             async login(email, password) {
                 const data = await this.api.request('auth/login', 'POST', { email, password });
                 this.user = data.user;
-                // Speichern des Tokens nach Login
                 this.client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
                 return this.user;
             }
@@ -234,23 +229,19 @@
                 return await this.api.request('auth/signup', 'POST', { email, password });
             }
             async logout() { 
-                this.client.auth.signOut(); // Wichtig: Session im Browser löschen
+                this.client.auth.signOut(); 
                 localStorage.removeItem('echomind_user'); 
                 this.user = null; 
             }
 
-            // --- CRUD (Verwendet Vercel API für sichere Lese-/Schreibvorgänge) ---
             async getAll() { 
                 if (!this.user) return []; 
-                // Ruft die Daten über die Vercel API ab
                 const data = await this.api.request(`items?user_id=${this.user.id}`);
                 return data.map(this.fromRow); 
             }
             
-            // Hinzufügen/Aktualisieren (PDF Upload)
             async add(item) { 
                  if (!this.user) return; 
-                 // Sendet Daten an die API (diese kümmert sich um Speicherung)
                  await this.api.request('save-item', 'POST', {
                      user_id: this.user.id,
                      topic: item.topic,
@@ -258,34 +249,19 @@
                      is_pdf: item.isPdf,
                      is_read: item.isRead,
                      timestamp: item.timestamp
-                     // KEINE Vektor-Logik hier!
                  });
             }
 
-            // Status-Update (z.B. gelesen/ungelesen)
-            async updateReadStatus(id, isRead) {
-                if (!this.user) return;
-                await this.api.request('save-item', 'POST', {
-                    id: id,
-                    user_id: this.user.id,
-                    is_read: isRead,
-                    update_only: true // Flag für das Backend
-                });
-            }
-
-            // Löschen (Verwendet Vercel API)
             async delete(id) { 
                 if (!this.user) return; 
                 await this.api.request('items', 'DELETE', { id: id, user_id: this.user.id });
             }
             
-            // Hilfsfunktion zum Abruf eines einzelnen Items (benötigt für getById)
             async getById(id) { 
                 const data = await this.api.request(`items?user_id=${this.user.id}&id=${id}`);
                 return data.length > 0 ? this.fromRow(data[0]) : null;
             }
             
-            // Konvertierungshilfen
             fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status }; }
         }
 
@@ -295,19 +271,17 @@
             saveKey(userId, key) { this.key = key; localStorage.setItem(`gemini_key_${userId}`, key); }
             hasKey() { return !!this.key; }
             
-            // Ruft die Vercel Chat API auf, die dann Gemini anspricht
             async call(prompt, isJson = false, contextContent = null) {
                 if (!this.key) throw new Error("MISSING_KEY");
                 
-                // Wir senden den Prompt und den Key an das Backend
                 const response = await fetch(`/api/chat`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
                     body: JSON.stringify({ 
                         query: prompt,
                         is_json: isJson,
-                        ai_key: this.key, // Senden des Gemini Keys an das Backend!
-                        context_content: contextContent // Für den alten Modus: Sende den gesamten Text!
+                        ai_key: this.key, 
+                        context_content: contextContent // Sendet den gesamten Text!
                     }) 
                 });
                 
@@ -317,7 +291,6 @@
                 }
                 
                 const data = await response.json();
-                // Die Backend-API gibt entweder "answer" oder "quizJSON" zurück
                 return data.quizJSON || data.answer; 
             }
         }
@@ -347,7 +320,7 @@
                 else this.dom.authModal.classList.remove('hidden');
             }
 
-            // --- AUTH CALLS (Delegieren an DB-Klasse) ---
+            // --- AUTH CALLS ---
             async login() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
@@ -446,13 +419,13 @@
                 this.addBubble(text,true);
                 
                 let prompt = text;
-                let contextContent = null; // NEU: Variable für den Kontext
+                let contextContent = null; 
 
                 // WENN CONTEXT GESETZT IST: Hol den gesamten Text (alte Logik)
                 if (this.activeCitationItem) {
                     const i = this.activeCitationItem;
                     const contextLimit = 500000; 
-                    contextContent = (i.fullText || "").substring(0, contextLimit); // Sende den Text mit
+                    contextContent = (i.fullText || "").substring(0, contextLimit);
                     
                     prompt = `
                         You are an assistant helping with the source: "${i.topic}".
@@ -464,7 +437,7 @@
                     `;
                 }
                 
-                this.processAI(prompt, false, contextContent); // Sende Kontext mit, auch wenn er im Prompt ist
+                this.processAI(prompt, false, contextContent);
             }
             
             async processAI(text, isJson = false, contextContent = null) {
@@ -485,9 +458,9 @@
 
             async aiAction(id, type) { 
                 try {
-                    const i = await this.db.getById(id); // Holt das Item
+                    const i = await this.db.getById(id);
                     if (!i) return;
-                    this.setContext(id); // Setzt den Kontext für den Chat
+                    this.setContext(id);
 
                     const cleanText = (i.fullText || "").substring(0, 500000); 
                     let prompt = "", display = "";
@@ -502,14 +475,14 @@
                          isJson = true;
                     }
                     
-                    this.addBubble(display, true); // Zeige den Button-Klick im Chat
-                    await this.processAI(prompt, isJson, cleanText); // Schicke den Text mit
+                    this.addBubble(display, true); 
+                    await this.processAI(prompt, isJson, cleanText); 
                     
                 } catch(e) {
                     this.addBubble("❌ System Error: " + e.message, false);
                 }
             }
-            
+
             async processHiddenPrompt(visibleText, actualPrompt, jsonMode = false) {
                 this.addBubble(visibleText, true); 
                 this.showLoading(true);
@@ -536,7 +509,7 @@
                 }
             }
             
-            // --- RENDERERS UND UI HELPER (BLEIBEN GLEICH) ---
+            // --- RENDERERS ---
             addBubble(text, isUser) {
                 const d = document.createElement('div');
                 d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
