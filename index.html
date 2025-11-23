@@ -70,7 +70,6 @@
     </nav>
 
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
-        
         <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
@@ -170,11 +169,9 @@
     </div>
 
     <script>
-        // Supabase Keys für Client-seitige Auth und Supabase Client Initialisierung
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
-        // --- PROMPT TEMPLATES (FÜR FUNKTIONALITÄT) ---
         const PROMPT_TEMPLATES = {
             summary: (context, title) => {
                 const cleanText = (context || "").substring(0, 500000); 
@@ -185,7 +182,6 @@
                 return `Create a multiple-choice question based on "${title}". FORMATTING RULES: 1. Return valid JSON. 2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac". 3. Explanation must cite the page number: [[Page X]]. JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." } CONTENT: ${cleanText}`;
             }
         };
-        // --- ENDE PROMPT TEMPLATES ---
 
         class APIClient {
             async request(endpoint, method = 'GET', body = null) {
@@ -207,7 +203,6 @@
                 this.api = new APIClient();
                 this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
-
             async checkUser() {
                  const storedUser = localStorage.getItem('echomind_user');
                  if (storedUser) {
@@ -231,65 +226,47 @@
                 localStorage.removeItem('echomind_user'); 
                 this.user = null; 
             }
-
             async getAll() { 
                 if (!this.user) return []; 
                 const data = await this.api.request(`items?user_id=${this.user.id}`);
                 return data.map(this.fromRow); 
             }
-            
             async add(item) { 
                  if (!this.user) return; 
-                 await this.api.request('save-item', 'POST', {
-                     user_id: this.user.id,
-                     topic: item.topic,
-                     full_text: item.fullText,
-                     is_pdf: item.isPdf,
-                     is_read: item.isRead,
-                     timestamp: item.timestamp
-                 });
+                 await this.api.request('save-item', 'POST', { user_id: this.user.id, topic: item.topic, full_text: item.fullText, is_pdf: item.isPdf, is_read: item.isRead, timestamp: item.timestamp });
             }
-
             async delete(id) { 
                 if (!this.user) return; 
                 await this.api.request('items', 'DELETE', { id: id, user_id: this.user.id });
             }
-            
             async getById(id) { 
                 const data = await this.api.request(`items?user_id=${this.user.id}&id=${id}`);
                 return data.length > 0 ? this.fromRow(data[0]) : null;
             }
-            
+            async updateReadStatus(id, isRead) {
+                if (!this.user) return;
+                await this.api.request('save-item', 'POST', { id: id, user_id: this.user.id, is_read: isRead, update_only: true });
+            }
             fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status }; }
         }
 
         class AIService {
-            constructor() { this.key = ""; } 
-            loadKey(userId) { this.key = localStorage.getItem(`gemini_key_${userId}`) || ""; }
-            saveKey(userId, key) { this.key = key; localStorage.setItem(`gemini_key_${userId}`, key); }
-            hasKey() { return !!this.key; }
-            
-            async call(prompt, isJson = false, contextContent = null) {
-                if (!this.key) throw new Error("MISSING_KEY");
-                
+            constructor() { } 
+            loadKey(userId) {}
+            saveKey(userId, key) {}
+            hasKey() { return true; }
+            async call(prompt, userId, isJson = false, contextContent = null) {
+                if (!userId) throw new Error("User ID missing for AI call");
                 const response = await fetch(`/api/chat`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ 
-                        query: prompt,
-                        is_json: isJson,
-                        ai_key: this.key, 
-                        context_content: contextContent 
-                    }) 
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ query: prompt, user_id: userId, is_json: isJson, context_content: contextContent }) 
                 });
-                
                 if(!response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || `API Error (${response.status})`);
                 }
-                
                 const data = await response.json();
-                return data.quizJSON || data.answer; 
+                return data.quizJSON || data.answer || data.message || "Keine Antwort erhalten."; 
             }
         }
 
@@ -297,12 +274,13 @@
             constructor() {
                 this.db = new SupabaseDB();
                 this.api = new APIClient(); 
+                this.ai = new AIService(); // INITIALISIERT
                 this.currentData = [];
                 this.notifiedIds = new Set();
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -318,36 +296,27 @@
                 else this.dom.authModal.classList.remove('hidden');
             }
 
-            // --- AUTH CALLS ---
             async login() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { 
-                    const user = await this.db.login(email, pass); 
-                    this.onLoginSuccess(user); 
-                } 
+                try { const user = await this.db.login(email, pass); this.onLoginSuccess(user); } 
                 catch(e) { this.dom.authError.innerText = "Failed: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async signup() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { 
-                    await this.db.signup(email, pass); 
-                    alert("Please check email to verify account!"); 
-                } 
+                try { await this.db.signup(email, pass); alert("Please check email to verify account!"); } 
                 catch(e) { this.dom.authError.innerText = "Error: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async logout() { this.db.logout(); location.reload(); }
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
-                this.ai.loadKey(user.id);
-                if (!this.ai.hasKey()) this.showKeyModal();
                 this.loadDashboard();
                 this.startClock();
             }
-            showKeyModal() { this.dom.keyModal.classList.remove('hidden'); this.dom.aiKey.value = this.ai.key || ""; }
-            saveAiKey() { const key = this.dom.aiKey.value.trim(); if(key && this.db.user) { this.ai.saveKey(this.db.user.id, key); this.dom.keyModal.classList.add('hidden'); this.addBubble("✅ API Key saved.", false); } }
+            showKeyModal() { alert("AI Settings werden vom Server verwaltet."); }
+            saveAiKey() { }
 
             startClock() { setInterval(() => { if(this.currentData.length > 0) this.checkReminders(); }, 5000); }
             checkReminders() {
@@ -363,15 +332,13 @@
             }
 
             async loadDashboard() { 
-                this.currentData = await this.db.getAll(); 
+                try { this.currentData = await this.db.getAll(); } catch(e) { this.currentData = []; console.error(e); }
                 const unread = this.currentData.filter(i => !i.isRead);
                 const read = this.currentData.filter(i => i.isRead);
                 this.dom.countUnread.innerText = `${unread.length} Sources`;
                 this.dom.countRead.innerText = `${read.length} Sources`;
-                
-                if (read.length === 0 && unread.length === 0) {
-                    this.dom.emptyState.classList.remove('hidden');
-                } else {
+                if (read.length === 0 && unread.length === 0) this.dom.emptyState.classList.remove('hidden');
+                else {
                     this.dom.emptyState.classList.add('hidden');
                     if (read.length > 0) {
                         const shuffled = read.sort(() => 0.5 - Math.random()).slice(0, 6);
@@ -409,47 +376,37 @@
                 } catch(e){ console.error(e); this.addBubble("❌ PDF Error: " + e.message, false); } 
             }
 
-            // --- HAUPT LOGIK: SENDEN DES PROMPTS ---
             async handleInput(t=null){
                 const text=t||this.dom.input.value.trim(); if(!text)return; 
                 if(!t)this.dom.input.value=''; 
                 this.addBubble(text,true);
-                
                 let prompt = text;
                 let contextContent = null; 
-
                 if (this.activeCitationItem) {
-                    const i = this.currentData.find(item => item.id === this.activeCitationItem.id); 
+                    let i = this.activeCitationItem;
+                    const freshItem = this.currentData.find(item => item.id === i.id);
+                    if(freshItem) i = freshItem;
                     const contextLimit = 500000; 
                     contextContent = (i.fullText || "").substring(0, contextLimit);
-                    
-                    prompt = `
-                        You are an assistant helping with the source: "${i.topic}".
-                        SOURCE CONTENT:
-                        ${contextContent}
-                        USER QUESTION:
-                        ${text}
-                        INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.
-                    `;
+                    prompt = `You are an assistant helping with the source: "${i.topic}". SOURCE CONTENT: ${contextContent} USER QUESTION: ${text} INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.`;
                 }
-                
                 this.processAI(prompt, false, contextContent);
             }
             
             async processAI(text, isJson = false, contextContent = null) {
                 this.showLoading(true);
                 try { 
-                    const res = await this.ai.call(text, isJson, contextContent); 
-                    
-                    if (isJson) {
+                    const res = await this.ai.call(text, this.db.user.id, isJson, contextContent); 
+                    this.showLoading(false);
+                    if (isJson && typeof res === 'object' && res.question) {
                          this.addBubble("❓ Quiz", true);
                          this.renderQuiz(res);
                     } else {
-                        this.addBubble(res, false); 
+                        const safeText = typeof res === 'object' ? JSON.stringify(res) : res;
+                        this.addBubble(safeText, false); 
                     }
                 } 
-                catch(e) { if(e.message==="MISSING_KEY"){this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} }
-                this.showLoading(false);
+                catch(e) { this.showLoading(false); this.addBubble("❌ Error: " + e.message, false); }
             }
 
             async aiAction(id, type) { 
@@ -457,11 +414,9 @@
                     const i = await this.db.getById(id);
                     if (!i) return;
                     this.setContext(id);
-
                     const cleanText = (i.fullText || "").substring(0, 500000); 
                     let prompt = "", display = "";
                     let isJson = false;
-
                     if (type === 'summary') {
                          prompt = PROMPT_TEMPLATES.summary(cleanText, i.topic);
                          display = `📝 Summarize`;
@@ -470,55 +425,51 @@
                          display = `❓ Generate Quiz`;
                          isJson = true;
                     }
-                    
                     this.addBubble(display, true); 
                     await this.processAI(prompt, isJson, cleanText); 
-                    
                 } catch(e) {
                     this.addBubble("❌ System Error: " + e.message, false);
                 }
             }
 
-            // --- HILFSFUNKTIONEN (Fix für den 'setContext is not a function' Fehler) ---
             async toggleRead(id, viewType) { 
                 const i = await this.db.getById(id); 
                 if(i) { 
-                    i.isRead=!i.isRead; 
-                    await this.db.add(i); 
+                    const newStatus = !i.isRead;
+                    await this.db.updateReadStatus(id, newStatus);
                     this.openList(viewType); 
                     this.loadDashboard(); 
                 } 
             }
-            async deleteItem(id) { 
-                if(confirm("Delete?")) { 
-                    await this.db.delete(id); 
-                    this.dom.listModal.classList.add('hidden'); 
-                    this.loadDashboard(); 
-                } 
+            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
+            
+            showLoading(s){
+                const e=document.getElementById('loader'); if(e) e.remove();
+                if(s){
+                    const d=document.createElement('div'); d.id='loader';
+                    d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';
+                    this.dom.chat.appendChild(d); this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
+                }
             }
+
             openSourceContext(pageNum) {
                 if (!this.activeCitationItem) return;
                 const item = this.activeCitationItem;
-                
                 this.dom.sourceTitle.innerText = item.topic;
                 this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
                 this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
                 this.dom.sourceContent.scrollTop = 0;
                 this.dom.sourceModal.classList.remove('hidden');
-
                 setTimeout(() => {
                     let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
                     rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
                     rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
-
                     this.dom.sourceContent.innerHTML = rawHtml;
-
-                    const element = document.getElementById(`page-${pageNum}`);
-                    if (element) {
-                        element.scrollIntoView({ behavior: 'auto', block: 'start' });
-                        element.classList.add('highlight-section');
-                        this.dom.sourcePage.innerText = `Page ${pageNum}`;
-                    }
+                    setTimeout(() => {
+                        const element = document.getElementById(`page-${pageNum}`);
+                        if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } 
+                        else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; }
+                    }, 500);
                 }, 100);
             }
             
@@ -533,30 +484,16 @@
                 }
                 return item;
             }
-
-            clearContext() {
-                this.activeCitationItem = null;
-                this.dom.contextBar.classList.add('hidden');
-                this.addBubble("📂 Context cleared.", false);
-            }
+            clearContext() { this.activeCitationItem = null; this.dom.contextBar.classList.add('hidden'); this.addBubble("📂 Context cleared.", false); }
             viewDatabase() { this.openList('read'); }
             async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
-            
-            showLoading(s){
-                const e=document.getElementById('loader'); if(e) e.remove();
-                if(s){
-                    const d=document.createElement('div'); d.id='loader';
-                    d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';
-                    this.dom.chat.appendChild(d); this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
-                }
-            }
 
-            // --- RENDERERS ---
             addBubble(text, isUser) {
+                if (!text) return; 
                 const d = document.createElement('div');
                 d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
-                let html = isUser ? text : marked.parse(text);
-                
+                let safeText = typeof text === 'string' ? text : JSON.stringify(text);
+                let html = isUser ? safeText : marked.parse(safeText);
                 if(!isUser) {
                     html = html.replace(/(?:\[+|\[|\(|^|\s)Page\s*(\d+)(?:\]+|\)|\]|\.|,|$)/gi, ` <button class="citation-btn" onclick="app.openSourceContext($1)">Page $1</button> `);
                     d.innerHTML = `<div class="${isUser?'bg-slate-100':'prose prose-slate'} px-4 py-2 rounded-lg max-w-[85%] shadow-sm border border-slate-100">${html}</div>`;
@@ -567,6 +504,7 @@
             }
 
             renderQuiz(d){
+                if(!d || !d.question) return; 
                 const v=document.createElement('div'); v.className="flex gap-4 w-full message-enter";
                 const qHtml = marked.parse(d.question);
                 v.innerHTML=`<div class="w-full max-w-md bg-white border rounded-xl p-4 shadow-sm"><div class="font-bold text-sm mb-4 prose prose-slate">${qHtml}</div><div id="opts" class="space-y-2"></div><div id="res" class="hidden mt-4 text-sm p-3 bg-slate-50 rounded-lg border border-slate-100"></div></div>`;
@@ -584,38 +522,6 @@
                     }; o.appendChild(b);
                 });
                 this.dom.chat.appendChild(v); this.dom.chat.scrollTop=this.dom.chat.scrollHeight;
-            }
-
-            renderCards(data) { 
-                this.dom.cards.innerHTML = data.map(i => {
-                    const header = (i.isYoutube && i.thumbnail) 
-                        ? `<div class="yt-thumbnail shadow-sm relative" style="background-image:url('${i.thumbnail}')"><div class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold">Video</div></div>`
-                        : `<div class="flex justify-between mb-3"><div class="w-8 h-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="${i.icon}"></i></div><span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold">Archive</span></div>`;
-                    return `
-                    <div class="p-4 rounded-xl border border-slate-200 bg-white hover:shadow-md transition flex flex-col h-full">
-                        ${header}
-                        <h3 class="font-bold text-sm mb-1 line-clamp-2" title="${i.topic}">${i.topic}</h3>
-                        <p class="text-xs text-slate-400 line-clamp-3 mb-4 flex-grow">${i.description}</p>
-                        <div class="flex gap-2 mt-auto pt-3 border-t">
-                             <button onclick="app.setContext(${i.id})" class="flex-grow text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-1.5 rounded font-bold"><i class="fa-regular fa-comments mr-1"></i> Chat</button>
-                             <button onclick="app.aiAction(${i.id},'summary')" class="text-[10px] bg-slate-50 hover:bg-slate-100 px-2 py-1.5 rounded text-slate-600" title="Summary"><i class="fa-solid fa-align-left"></i></button>
-                             <button onclick="app.aiAction(${i.id},'quiz')" class="text-[10px] bg-slate-50 hover:bg-slate-100 px-2 py-1.5 rounded text-slate-600" title="Quiz"><i class="fa-solid fa-question"></i></button>
-                        </div>
-                    </div>`;
-                }).join(''); 
-            }
-
-            renderList(data, type) {
-                if(data.length===0) { this.dom.listContent.innerHTML='<div class="text-center py-10 text-slate-400">Empty.</div>'; return; }
-                this.dom.listContent.innerHTML = data.map(i => {
-                    const date = new Date(i.timestamp).toLocaleDateString();
-                    const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id},'${type}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Read</button>` : `<button onclick="app.toggleRead(${i.id},'${type}')" class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Unread</button>`;
-                    const ai = type==='read' ? `
-                        <button onclick="app.setContext(${i.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs mr-2 font-bold">Chat</button>
-                        <button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button>
-                        <button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
-                    return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
-                }).join('');
             }
         }
         window.app = new DashboardApp();
