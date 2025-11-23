@@ -66,7 +66,7 @@
             <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
                 <i class="fa-solid fa-right-from-bracket"></i>
             </button>
-            </div>
+        </div>
     </nav>
 
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
@@ -146,6 +146,16 @@
         </div>
     </div>
 
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center relative animate-fade-in">
+            <button onclick="document.getElementById('apiKeyModal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-xl font-bold text-slate-800 mb-2">AI Setup</h2>
+            <p class="text-sm text-slate-500 mb-6">Enter Gemini API Key (stored locally).</p>
+            <input type="password" id="aiKey" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm outline-none" placeholder="AIzaSy...">
+            <button onclick="app.saveAiKey()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition">Save Key</button>
+        </div>
+    </div>
+
     <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
@@ -170,8 +180,42 @@
     </div>
 
     <script>
-        // --- SICHERHEITSHINWEIS: Key wird an Backend gesendet, aber nicht im HTML exponiert. ---
-        
+        // --- PROMPT TEMPLATES (WICHTIG!) ---
+        const PROMPT_TEMPLATES = {
+            summary: (context, title) => {
+                const cleanText = (context || "").substring(0, 500000); 
+                return `
+                    Analyze the following content from "${title}".
+                    Summarize the key points concisely. 
+                    
+                    FORMATTING RULES:
+                    1. Use LaTeX for math: $E=mc^2$ (inline) or $$E=mc^2$$ (block).
+                    2. IMPORTANT: Cite page numbers for every fact using this exact format: [[Page 5]].
+                    
+                    CONTENT:
+                    ${cleanText}
+                `;
+            },
+            quiz: (context, title) => {
+                const cleanText = (context || "").substring(0, 500000);
+                return `
+                    Create a multiple-choice question based on "${title}".
+                    
+                    FORMATTING RULES:
+                    1. Return valid JSON.
+                    2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac".
+                    3. Explanation must cite the page number: [[Page X]].
+                    
+                    JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
+                    
+                    CONTENT:
+                    ${cleanText}
+                `;
+            }
+        };
+        // --- ENDE PROMPT TEMPLATES ---
+
+
         // Supabase Keys für Client-seitige Auth und Supabase Client Initialisierung
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
@@ -269,7 +313,7 @@
                     body: JSON.stringify({ 
                         query: prompt,
                         is_json: isJson,
-                        ai_key: this.key, // SENDET KEY SICHER ZUM SERVER
+                        ai_key: this.key, 
                         context_content: contextContent 
                     }) 
                 });
@@ -293,10 +337,7 @@
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), 
-                    // AI Key Modal Elemente entfernt
-                    aiKey: null,
-                    userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: documentgetElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -335,20 +376,13 @@
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
-                
-                // Wir speichern den Key nicht mehr lokal, sondern prüfen nur, ob er existiert
-                // (Der Key muss in Vercel hinterlegt sein)
+                this.ai.loadKey(user.id);
+                if (!this.ai.hasKey()) this.showKeyModal();
                 this.loadDashboard();
                 this.startClock();
             }
-            
-            // Dummy Funktionen, da Key nicht mehr im Browser gespeichert wird
-            showKeyModal() { 
-                alert("AI Key wird jetzt nur noch in Vercel (als GEMINI_KEY) hinterlegt.");
-            }
-            saveAiKey() { 
-                alert("Bitte Key direkt in Vercel Environment Variables eintragen."); 
-            }
+            showKeyModal() { this.dom.keyModal.classList.remove('hidden'); this.dom.aiKey.value = this.ai.key || ""; }
+            saveAiKey() { const key = this.dom.aiKey.value.trim(); if(key && this.db.user) { this.ai.saveKey(this.db.user.id, key); this.dom.keyModal.classList.add('hidden'); this.addBubble("✅ API Key saved.", false); } }
 
             startClock() { setInterval(() => { if(this.currentData.length > 0) this.checkReminders(); }, 5000); }
             checkReminders() {
@@ -419,6 +453,7 @@
                 let prompt = text;
                 let contextContent = null; 
 
+                // WENN CONTEXT GESETZT IST: Hol den gesamten Text (alte Logik)
                 if (this.activeCitationItem) {
                     const i = this.activeCitationItem;
                     const contextLimit = 500000; 
@@ -434,7 +469,6 @@
                     `;
                 }
                 
-                // Schickt den Prompt an die API (die dann Gemini aufruft)
                 this.processAI(prompt, false, contextContent);
             }
             
@@ -451,11 +485,8 @@
                         this.addBubble(res, false); 
                     }
                 } 
-                catch(e) { 
-                    this.showLoading(false);
-                    // Die Fehlermeldung ist jetzt generisch, da der Key nicht mehr lokal gespeichert wird
-                    this.addBubble("❌ Error connecting to AI. Check Vercel Logs/Gemini Key.", false);
-                }
+                catch(e) { if(e.message==="MISSING_KEY"){this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} }
+                this.showLoading(false);
             }
 
             async aiAction(id, type) { 
@@ -485,7 +516,7 @@
                 }
             }
 
-            // --- HILFSFUNKTIONEN (Hier sind alle ursprünglichen Funktionen drin) ---
+            // --- HILFSFUNKTIONEN (Fix für den 'setContext is not a function' Fehler) ---
             async toggleRead(id, viewType) { 
                 const i = await this.db.getById(id); 
                 if(i) { 
