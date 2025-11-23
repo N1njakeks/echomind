@@ -1,18 +1,194 @@
-<script>
-        // --- SICHERHEITSHINWEIS: Wir verwenden jetzt KEINE Vektor-Suche mehr.
-        // Die Logik sendet den gesamten Text an die KI (alte Methode),
-        // aber der Gemini-Key bleibt sicher im Backend von Vercel.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EchoMind Cloud</title>
+    
+    <link rel="icon" href="https://api.dicebear.com/7.x/shapes/svg?seed=EchoMind&backgroundColor=4f46e5">
+    <meta name="theme-color" content="#ffffff">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
-        // Diese Keys dienen nur zur Initialisierung des Supabase-Clients für Auth
-        // Sie sind die ANON Keys und werden nicht für kritische Schreibvorgänge verwendet
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .prose p { margin-bottom: 0.5em; }
+        .message-enter { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .yt-thumbnail { aspect-ratio: 16/9; background-size: cover; background-position: center; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+        
+        .citation-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            background-color: #e0e7ff; color: #4338ca;
+            padding: 2px 8px; border-radius: 12px;
+            font-size: 0.75em; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; vertical-align: baseline; border: 1px solid #c7d2fe;
+            text-decoration: none !important; white-space: nowrap; margin: 0 2px;
+        }
+        .citation-btn:hover { background-color: #4338ca; color: white; transform: translateY(-1px); }
+        .citation-btn::before { content: "\f02d"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+        #sourceContent {
+            background-color: #ffffff; color: #334155; font-family: 'Georgia', serif;
+            line-height: 1.8; padding: 3rem; max-width: 100%; margin: 0 auto;
+        }
+
+        .page-marker {
+            display: block; border-bottom: 2px solid #e2e8f0; margin: 4rem 0 2rem 0;
+            padding-bottom: 0.5rem; font-family: sans-serif; font-weight: 700;
+            color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;
+            letter-spacing: 0.1em; text-align: center; scroll-margin-top: 120px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <nav class="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-indigo-200 shadow-lg">E</div>
+            <span class="font-semibold text-lg tracking-tight hidden sm:inline">EchoMind</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="userInfo" class="text-xs font-medium text-slate-500 hidden sm:block"></div>
+            <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-indigo-600 transition border border-slate-200 rounded px-2 py-1 ml-1" title="AI Settings">
+                <i class="fa-solid fa-robot"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
+        
+        <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
+                <p class="text-slate-500 text-sm">Private cloud storage & AI analysis.</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="file" id="pdfInput" accept=".pdf" class="hidden">
+                <button onclick="app.viewDatabase()" class="text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition shadow-sm border border-slate-200">
+                    <i class="fa-solid fa-list"></i> List
+                </button>
+                <button onclick="document.getElementById('pdfInput').click()" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm shadow-indigo-200 hover:shadow-indigo-300">
+                    <i class="fa-solid fa-plus"></i> PDF Upload
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <button onclick="app.openList('unread')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition text-left group relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-regular fa-bookmark text-6xl text-indigo-600"></i></div>
+                <h3 class="font-bold text-lg text-slate-800">Inbox (Unread)</h3>
+                <p class="text-sm text-slate-500 mt-1">New sources via extension or upload.</p>
+                <div class="mt-4 text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full w-fit" id="countUnread">0 Sources</div>
+            </button>
+
+            <button onclick="app.openList('read')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-200 transition text-left group relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-solid fa-book-open text-6xl text-emerald-600"></i></div>
+                <h3 class="font-bold text-lg text-slate-800">Notebook (Read)</h3>
+                <p class="text-sm text-slate-500 mt-1">Ready for Deep Dive & Quiz.</p>
+                <div class="mt-4 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full w-fit" id="countRead">0 Sources</div>
+            </button>
+        </div>
+
+        <div class="w-full mb-10">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Deep Dive</h2>
+                <button onclick="app.loadDashboard()" class="text-xs text-slate-400 hover:text-indigo-600 transition"><i class="fa-solid fa-rotate"></i> Shuffle</button>
+            </div>
+            <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            <div id="emptyState" class="hidden w-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+                <p class="text-slate-500 font-medium">Notebook empty.</p>
+            </div>
+        </div>
+        
+        <div id="chatContainer" class="w-full flex flex-col gap-6 mb-4"></div>
+    </main>
+
+    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 z-20">
+        <div class="max-w-3xl mx-auto relative">
+            <div id="contextBar" class="hidden absolute -top-10 left-0 right-0 flex justify-between items-center bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-t-lg text-xs font-medium shadow-sm">
+                <span class="truncate max-w-[85%] flex items-center"><i class="fa-solid fa-link mr-2"></i>Chatting with: <span id="contextName" class="font-bold ml-1">...</span></span>
+                <button onclick="app.clearContext()" class="hover:text-indigo-900 p-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="flex gap-2">
+                <textarea id="mainInput" rows="1" class="flex-grow p-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 resize-none text-slate-800 placeholder-slate-400 text-sm" placeholder="Ask a question..."></textarea>
+                <button id="sendBtn" class="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center transition-colors"><i class="fa-solid fa-arrow-up text-sm"></i></button>
+            </div>
+        </div>
+    </footer>
+
+    <div id="authModal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-sm w-full shadow-2xl text-center relative animate-fade-in">
+            <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mx-auto mb-4 text-xl font-bold">E</div>
+            <h2 class="text-xl font-bold text-slate-800 mb-1">Welcome back</h2>
+            <p class="text-sm text-slate-500 mb-6">Sign in to access your cloud library.</p>
+            <input type="email" id="emailInput" class="w-full p-3 border border-slate-300 rounded-lg mb-3 text-sm outline-none" placeholder="Email">
+            <input type="password" id="passwordInput" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm outline-none" placeholder="Password">
+            <div class="flex flex-col gap-3">
+                <button onclick="app.login()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Sign In</button>
+                <button onclick="app.signup()" class="w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-lg font-medium hover:bg-slate-50 transition">Create Account</button>
+            </div>
+            <div id="authError" class="text-red-500 text-xs mt-4 hidden"></div>
+        </div>
+    </div>
+
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center relative animate-fade-in">
+            <button onclick="document.getElementById('apiKeyModal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-xl font-bold text-slate-800 mb-2">AI Setup</h2>
+            <p class="text-sm text-slate-500 mb-6">Enter Gemini API Key (stored locally).</p>
+            <input type="password" id="aiKey" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm outline-none" placeholder="AIzaSy...">
+            <button onclick="app.saveAiKey()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition">Save Key</button>
+        </div>
+    </div>
+
+    <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+            <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
+                <div><h3 class="font-bold text-xl text-slate-800" id="listTitle">List</h3><p class="text-xs text-slate-500 mt-1" id="listSubtitle">Cloud Data</p></div>
+                <button onclick="document.getElementById('listModal').classList.add('hidden'); app.loadDashboard();" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto bg-slate-50 p-6"><div id="listContent" class="space-y-3"></div></div>
+        </div>
+    </div>
+
+    <div id="sourceModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white w-full max-w-3xl h-[90vh] rounded-2xl flex flex-col shadow-2xl animate-fade-in m-4 overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-slate-100 bg-white z-10">
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800 truncate max-w-xs" id="sourceTitle">Source</h3>
+                    <p class="text-xs text-emerald-600 font-medium" id="sourcePage"><i class="fa-solid fa-location-dot mr-1"></i>Locating...</p>
+                </div>
+                <button onclick="document.getElementById('sourceModal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-8 bg-slate-50 scroll-smooth text-slate-700" id="sourceContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- SICHERHEITSHINWEIS: Dieser Code ist nur für den Prototyp/das Debugging gedacht. ---
+        // Er verwendet den ungeschützten ANONYMOUS Key (unten) und ist daher nicht produktiv sicher.
+        // Der sichere Weg ist der Umbau auf die Vercel-API.
+
+        // Supabase Keys: Muss für den Client-Zugriff beibehalten werden
+        // (Wird aber von der neuen Logik nicht mehr genutzt, da API Calls das übernehmen)
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
-
-        // --- PROMPT TEMPLATES (FÜR DEN ALTEN MODUS) ---
-        const PROMPT_TEMPLATES = {
-            summary: (context, title) => `Analyze the following content from "${title}". Summarize the key points concisely. FORMATTING RULES: 1. Use LaTeX for math: $E=mc^2$. 2. IMPORTANT: Cite page numbers for every fact using this exact format: [[Page 5]]. CONTENT: ${context}`,
-            quiz: (context, title) => `Create a multiple-choice question based on "${title}". FORMATTING RULES: 1. Return valid JSON. 2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac". 3. Explanation must cite the page number: [[Page X]]. JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." } CONTENT: ${context}`
-        };
 
         class APIClient {
             // Zentrale Funktion für alle Backend-Aufrufe
@@ -30,20 +206,13 @@
 
         class SupabaseDB {
             constructor() { 
-                this.client = null; 
                 this.tableName = 'items'; 
                 this.user = null; 
                 this.api = new APIClient();
+                // Client bleibt hier, wird aber nur für Auth genutzt (nicht für CRUD)
+                this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
 
-            init() { 
-                if (SUPABASE_URL && SUPABASE_KEY) { 
-                    this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); 
-                    return true; 
-                } 
-                return false; 
-            }
-            
             // --- AUTHENTICATION (Verwendet Vercel API, nicht direkten Supabase Client) ---
             async checkUser() {
                  const storedUser = localStorage.getItem('echomind_user');
@@ -57,19 +226,24 @@
             async login(email, password) {
                 const data = await this.api.request('auth/login', 'POST', { email, password });
                 this.user = data.user;
+                // Speichern des Tokens nach Login
+                this.client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
                 return this.user;
             }
             async signup(email, password) { 
                 return await this.api.request('auth/signup', 'POST', { email, password });
             }
-            async logout() { localStorage.removeItem('echomind_user'); this.user = null; }
+            async logout() { 
+                this.client.auth.signOut(); // Wichtig: Session im Browser löschen
+                localStorage.removeItem('echomind_user'); 
+                this.user = null; 
+            }
 
             // --- CRUD (Verwendet Vercel API für sichere Lese-/Schreibvorgänge) ---
             async getAll() { 
                 if (!this.user) return []; 
                 // Ruft die Daten über die Vercel API ab
                 const data = await this.api.request(`items?user_id=${this.user.id}`);
-                // Die API liefert bereits das Array, keine Fehlerprüfung hier nötig
                 return data.map(this.fromRow); 
             }
             
@@ -84,7 +258,7 @@
                      is_pdf: item.isPdf,
                      is_read: item.isRead,
                      timestamp: item.timestamp
-                     // Wir senden KEIN Embedding mit, das Backend fügt es hinzu (optional)
+                     // KEINE Vektor-Logik hier!
                  });
             }
 
@@ -122,7 +296,7 @@
             hasKey() { return !!this.key; }
             
             // Ruft die Vercel Chat API auf, die dann Gemini anspricht
-            async call(prompt, isJson = false) {
+            async call(prompt, isJson = false, contextContent = null) {
                 if (!this.key) throw new Error("MISSING_KEY");
                 
                 // Wir senden den Prompt und den Key an das Backend
@@ -132,7 +306,8 @@
                     body: JSON.stringify({ 
                         query: prompt,
                         is_json: isJson,
-                        ai_key: this.key // Senden des Gemini Keys an das Backend!
+                        ai_key: this.key, // Senden des Gemini Keys an das Backend!
+                        context_content: contextContent // Für den alten Modus: Sende den gesamten Text!
                     }) 
                 });
                 
@@ -167,13 +342,12 @@
             }
 
             async init() {
-                this.db.init();
                 const user = await this.db.checkUser();
                 if (user) this.onLoginSuccess(user);
                 else this.dom.authModal.classList.remove('hidden');
             }
 
-            // --- AUTH CALLS ---
+            // --- AUTH CALLS (Delegieren an DB-Klasse) ---
             async login() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
@@ -255,7 +429,7 @@
                         const strings = content.items.map(s => s.str).join(' ');
                         t += `\n\n[[PAGE ${i}]]\n${strings}`; 
                     }
-                    // WICHTIG: Sendet Text an save-item API, die speichert es OHNE Vektor
+                    // NEU: Ruft die API auf, speichert NUR TEXT
                     await this.db.add({
                         id: Date.now(), topic: file.name.replace('.pdf',''), description: t.substring(0,150)+"...", fullText: t,
                         icon: "fa-solid fa-file-pdf", color: "rose", timestamp: Date.now(), isPdf: true, isRead: false, isYoutube: false
@@ -272,34 +446,40 @@
                 this.addBubble(text,true);
                 
                 let prompt = text;
-                // Wenn ein Kontext-Item ausgewählt ist, wird der gesamte Text in den Prompt geladen (alte Logik)
+                let contextContent = null; // NEU: Variable für den Kontext
+
+                // WENN CONTEXT GESETZT IST: Hol den gesamten Text (alte Logik)
                 if (this.activeCitationItem) {
                     const i = this.activeCitationItem;
                     const contextLimit = 500000; 
-                    const content = (i.fullText || "").substring(0, contextLimit); 
+                    contextContent = (i.fullText || "").substring(0, contextLimit); // Sende den Text mit
+                    
                     prompt = `
                         You are an assistant helping with the source: "${i.topic}".
                         SOURCE CONTENT:
-                        ${content}
+                        ${contextContent}
                         USER QUESTION:
                         ${text}
                         INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.
                     `;
                 }
-                // Schickt den Prompt an die API (die dann Gemini aufruft)
-                this.processAI(prompt);
+                
+                this.processAI(prompt, false, contextContent); // Sende Kontext mit, auch wenn er im Prompt ist
             }
             
-            async processAI(text) {
+            async processAI(text, isJson = false, contextContent = null) {
                 this.showLoading(true);
                 try { 
-                    const res = await this.ai.call(text); // Ruft API auf
-                    this.addBubble(res, false); 
+                    const res = await this.ai.call(text, isJson, contextContent); 
+                    
+                    if (isJson) {
+                         this.addBubble("❓ Quiz", true);
+                         this.renderQuiz(res);
+                    } else {
+                        this.addBubble(res, false); 
+                    }
                 } 
-                catch(e) { 
-                    if(e.message==="MISSING_KEY"){this.showKeyModal();}
-                    else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} 
-                }
+                catch(e) { if(e.message==="MISSING_KEY"){this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} }
                 this.showLoading(false);
             }
 
@@ -307,10 +487,11 @@
                 try {
                     const i = await this.db.getById(id); // Holt das Item
                     if (!i) return;
-                    this.setContext(id);
+                    this.setContext(id); // Setzt den Kontext für den Chat
 
                     const cleanText = (i.fullText || "").substring(0, 500000); 
                     let prompt = "", display = "";
+                    let isJson = false;
 
                     if (type === 'summary') {
                          prompt = PROMPT_TEMPLATES.summary(cleanText, i.topic);
@@ -318,15 +499,12 @@
                     } else {
                          prompt = PROMPT_TEMPLATES.quiz(cleanText, i.topic);
                          display = `❓ Generate Quiz`;
+                         isJson = true;
                     }
-
-                    if(type==='quiz') {
-                        const res = await this.ai.call(prompt, true); // Ruft JSON ab
-                        this.addBubble(display, true);
-                        this.renderQuiz(res);
-                    } else {
-                        await this.processHiddenPrompt(display, prompt);
-                    }
+                    
+                    this.addBubble(display, true); // Zeige den Button-Klick im Chat
+                    await this.processAI(prompt, isJson, cleanText); // Schicke den Text mit
+                    
                 } catch(e) {
                     this.addBubble("❌ System Error: " + e.message, false);
                 }
@@ -358,7 +536,7 @@
                 }
             }
             
-            // --- RENDERERS UND UI HELPER BLEIBEN GLEICH ---
+            // --- RENDERERS UND UI HELPER (BLEIBEN GLEICH) ---
             addBubble(text, isUser) {
                 const d = document.createElement('div');
                 d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
@@ -421,7 +599,10 @@
                 this.dom.listContent.innerHTML = data.map(i => {
                     const date = new Date(i.timestamp).toLocaleDateString();
                     const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id},'${type}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Read</button>` : `<button onclick="app.toggleRead(${i.id},'${type}')" class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Unread</button>`;
-                    const ai = type==='read' ? `<button onclick="app.setContext(${i.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs mr-2 font-bold">Chat</button> <button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button> <button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
+                    const ai = type==='read' ? `
+                        <button onclick="app.setContext(${i.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs mr-2 font-bold">Chat</button>
+                        <button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button>
+                        <button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
                     return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
                 }).join('');
             }
