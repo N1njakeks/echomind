@@ -66,10 +66,7 @@
             <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
                 <i class="fa-solid fa-right-from-bracket"></i>
             </button>
-            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-indigo-600 transition border border-slate-200 rounded px-2 py-1 ml-1" title="AI Settings">
-                <i class="fa-solid fa-robot"></i>
-            </button>
-        </div>
+            </div>
     </nav>
 
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
@@ -146,16 +143,6 @@
                 <button onclick="app.signup()" class="w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-lg font-medium hover:bg-slate-50 transition">Create Account</button>
             </div>
             <div id="authError" class="text-red-500 text-xs mt-4 hidden"></div>
-        </div>
-    </div>
-
-    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
-        <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center relative animate-fade-in">
-            <button onclick="document.getElementById('apiKeyModal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500"><i class="fa-solid fa-xmark"></i></button>
-            <h2 class="text-xl font-bold text-slate-800 mb-2">AI Setup</h2>
-            <p class="text-sm text-slate-500 mb-6">Enter Gemini API Key (stored locally).</p>
-            <input type="password" id="aiKey" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm outline-none" placeholder="AIzaSy...">
-            <button onclick="app.saveAiKey()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition">Save Key</button>
         </div>
     </div>
 
@@ -242,7 +229,7 @@
             
             async add(item) { 
                  if (!this.user) return; 
-                 // Sendet Daten OHNE Vektor an die API (diese kümmert sich um Speicherung)
+                 // Sendet Daten OHNE Vektor an die API
                  await this.api.request('save-item', 'POST', {
                      user_id: this.user.id,
                      topic: item.topic,
@@ -282,7 +269,7 @@
                     body: JSON.stringify({ 
                         query: prompt,
                         is_json: isJson,
-                        ai_key: this.key, 
+                        ai_key: this.key, // SENDET KEY SICHER ZUM SERVER
                         context_content: contextContent 
                     }) 
                 });
@@ -306,7 +293,10 @@
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), 
+                    // AI Key Modal Elemente entfernt
+                    aiKey: null,
+                    userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -345,13 +335,20 @@
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
-                this.ai.loadKey(user.id);
-                if (!this.ai.hasKey()) this.showKeyModal();
+                
+                // Wir speichern den Key nicht mehr lokal, sondern prüfen nur, ob er existiert
+                // (Der Key muss in Vercel hinterlegt sein)
                 this.loadDashboard();
                 this.startClock();
             }
-            showKeyModal() { this.dom.keyModal.classList.remove('hidden'); this.dom.aiKey.value = this.ai.key || ""; }
-            saveAiKey() { const key = this.dom.aiKey.value.trim(); if(key && this.db.user) { this.ai.saveKey(this.db.user.id, key); this.dom.keyModal.classList.add('hidden'); this.addBubble("✅ API Key saved.", false); } }
+            
+            // Dummy Funktionen, da Key nicht mehr im Browser gespeichert wird
+            showKeyModal() { 
+                alert("AI Key wird jetzt nur noch in Vercel (als GEMINI_KEY) hinterlegt.");
+            }
+            saveAiKey() { 
+                alert("Bitte Key direkt in Vercel Environment Variables eintragen."); 
+            }
 
             startClock() { setInterval(() => { if(this.currentData.length > 0) this.checkReminders(); }, 5000); }
             checkReminders() {
@@ -422,7 +419,6 @@
                 let prompt = text;
                 let contextContent = null; 
 
-                // WENN CONTEXT GESETZT IST: Hol den gesamten Text (alte Logik)
                 if (this.activeCitationItem) {
                     const i = this.activeCitationItem;
                     const contextLimit = 500000; 
@@ -438,6 +434,7 @@
                     `;
                 }
                 
+                // Schickt den Prompt an die API (die dann Gemini aufruft)
                 this.processAI(prompt, false, contextContent);
             }
             
@@ -454,8 +451,11 @@
                         this.addBubble(res, false); 
                     }
                 } 
-                catch(e) { if(e.message==="MISSING_KEY"){this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} }
-                this.showLoading(false);
+                catch(e) { 
+                    this.showLoading(false);
+                    // Die Fehlermeldung ist jetzt generisch, da der Key nicht mehr lokal gespeichert wird
+                    this.addBubble("❌ Error connecting to AI. Check Vercel Logs/Gemini Key.", false);
+                }
             }
 
             async aiAction(id, type) { 
@@ -485,7 +485,7 @@
                 }
             }
 
-            // --- HILFSFUNKTIONEN ---
+            // --- HILFSFUNKTIONEN (Hier sind alle ursprünglichen Funktionen drin) ---
             async toggleRead(id, viewType) { 
                 const i = await this.db.getById(id); 
                 if(i) { 
@@ -543,12 +543,10 @@
                 this.dom.contextBar.classList.add('hidden');
                 this.addBubble("📂 Context cleared.", false);
             }
-
             viewDatabase() { this.openList('read'); }
             async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
 
-
-            // --- RENDERERS UND UI HELPER ---
+            // --- RENDERERS ---
             addBubble(text, isUser) {
                 const d = document.createElement('div');
                 d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
