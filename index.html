@@ -18,7 +18,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
     <style>
@@ -273,7 +272,6 @@
             
             async add(item) { 
                  if (!this.user) return; 
-                 // Sendet Daten OHNE Vektor an die API
                  await this.api.request('save-item', 'POST', {
                      user_id: this.user.id,
                      topic: item.topic,
@@ -337,7 +335,7 @@
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: documentgetElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -453,9 +451,8 @@
                 let prompt = text;
                 let contextContent = null; 
 
-                // WENN CONTEXT GESETZT IST: Hol den gesamten Text (alte Logik)
                 if (this.activeCitationItem) {
-                    const i = this.activeCitationItem;
+                    const i = this.currentData.find(item => item.id === this.activeCitationItem.id); 
                     const contextLimit = 500000; 
                     contextContent = (i.fullText || "").substring(0, contextLimit);
                     
@@ -475,7 +472,6 @@
             async processAI(text, isJson = false, contextContent = null) {
                 this.showLoading(true);
                 try { 
-                    // Schicke Kontext und Prompt an die API
                     const res = await this.ai.call(text, isJson, contextContent); 
                     
                     if (isJson) {
@@ -516,7 +512,7 @@
                 }
             }
 
-            // --- HILFSFUNKTIONEN (Fix für den 'setContext is not a function' Fehler) ---
+            // --- HILFSFUNKTIONEN ---
             async toggleRead(id, viewType) { 
                 const i = await this.db.getById(id); 
                 if(i) { 
