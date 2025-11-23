@@ -29,19 +29,19 @@ export default async function handler(req, res) {
 
         // --- NEUE LOGIK: HOLT DEN GESAMTEN TEXT ---
         if (context_item_id) {
-            // Holt den gesamten Text des Dokuments (wie im alten HTML)
             const { data } = await supabase.from('items').select('full_text').eq('id', context_item_id).single();
             if(data) contextText = data.full_text;
         }
 
         // 2. Chatten mit Gemini Flash
+        // ÄNDERUNG: Modell auf gemini-1.5-flash gesetzt (sicherer)
         const systemPrompt = `
         Du bist ein hilfreicher Lernassistent. 
         Antworte basierend auf den Notizen. Wenn die Notizen leer sind, verwende dein allgemeines Wissen.
-        NOTIZEN: ${contextText.substring(0, 30000)}`; // Begrenze Kontext auf 30k Zeichen
+        NOTIZEN: ${contextText.substring(0, 30000)}`; 
         
         const chatModel = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash", 
+            model: "gemini-1.5-flash", 
             systemInstruction: systemPrompt
         });
 
@@ -50,11 +50,26 @@ export default async function handler(req, res) {
         // 3. Quiz-Logik
         if (isQuiz) {
             const quizPrompt = `Erstelle ein Quiz basierend auf dem Kontext als reines JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }`;
-            const quizResult = await chatModel.generateContent({contents: quizPrompt, config: {responseMimeType: "application/json"}});
+            
+            // Wir zwingen Gemini zu JSON Output
+            const quizResult = await chatModel.generateContent({
+                contents: [{ role: "user", parts: [{ text: quizPrompt }] }],
+                generationConfig: { responseMimeType: "application/json" }
+            });
+            
             const quizText = quizResult.response.text();
-            const jsonMatch = quizText.match(/\{[\s\S]*\}/);
-            if(jsonMatch) return res.status(200).json({ quizJSON: JSON.parse(jsonMatch[0]) });
-            else return res.status(200).json({ message: "Quiz konnte nicht als sauberes JSON generiert werden.", details: quizText });
+            
+            // Bereinigung: Entferne Markdown, falls vorhanden
+            const cleanJson = quizText.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            try {
+                const quizObj = JSON.parse(cleanJson);
+                return res.status(200).json({ quizJSON: quizObj });
+            } catch (e) {
+                console.error("JSON Parse Error:", e);
+                // Fallback: Sende Text, wenn JSON kaputt ist
+                return res.status(200).json({ answer: "Das Quiz konnte nicht formatiert werden. Hier ist der Rohdaten-Entwurf:\n\n" + quizText });
+            }
         }
         
         // 4. Normale Antwort
