@@ -92,7 +92,7 @@
             <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
                 <i class="fa-solid fa-right-from-bracket"></i>
             </button>
-            </div>
+        </div>
     </nav>
 
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
@@ -228,7 +228,6 @@
             `
         };
 
-        // --- API CLIENT (Sichere Brücke zum Vercel Backend) ---
         class APIClient {
             async request(endpoint, method = 'GET', body = null) {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -245,7 +244,6 @@
         // --- DATENBANK KLASSE ---
         class SupabaseDB {
             constructor() { 
-                this.client = null; 
                 this.tableName = 'items'; 
                 this.user = null; 
                 this.api = new APIClient();
@@ -276,51 +274,74 @@
                 localStorage.removeItem('echomind_user'); 
                 this.user = null; 
             }
+
             async getAll() { 
                 if (!this.user) return []; 
                 const data = await this.api.request(`items?user_id=${this.user.id}`);
                 return data.map(this.fromRow); 
             }
+            
             async add(item) { 
                  if (!this.user) return; 
                  await this.api.request('save-item', 'POST', {
-                     user_id: this.user.id, topic: item.topic, full_text: item.fullText, 
-                     is_pdf: item.isPdf, is_read: item.isRead, timestamp: item.timestamp
+                     user_id: this.user.id,
+                     topic: item.topic,
+                     full_text: item.fullText,
+                     is_pdf: item.isPdf,
+                     is_read: item.isRead,
+                     timestamp: item.timestamp
                  });
             }
-            async getById(id) { 
-                const data = await this.api.request(`items?user_id=${this.user.id}&id=${id}`);
-                return data.length > 0 ? this.fromRow(data[0]) : null;
-            }
+
             async delete(id) { 
                 if (!this.user) return; 
                 await this.api.request('items', 'DELETE', { id: id, user_id: this.user.id });
             }
+            
+            async getById(id) { 
+                const data = await this.api.request(`items?user_id=${this.user.id}&id=${id}`);
+                return data.length > 0 ? this.fromRow(data[0]) : null;
+            }
+            
             async updateReadStatus(id, isRead) {
                 if (!this.user) return;
-                await this.api.request('save-item', 'POST', { id: id, user_id: this.user.id, is_read: isRead, update_only: true });
+                await this.api.request('save-item', 'POST', {
+                    id: id,
+                    user_id: this.user.id,
+                    is_read: isRead,
+                    update_only: true
+                });
             }
-
-            toRow(item) { return { id: item.id, user_id: this.user.id, topic: item.topic, description: item.description, full_text: item.fullText, icon: item.icon, color: item.color, timestamp: item.timestamp, is_pdf: item.isPdf, is_youtube: item.isYoutube, is_read: item.isRead, thumbnail: item.thumbnail, url: item.url, transcript_status: item.transcriptStatus }; }
-            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcript_status: row.transcript_status }; }
+            
+            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status }; }
         }
 
-        // --- AI SERVICE (WICHTIG: Keine Keys im Browser!) ---
+        // --- AI SERVICE (SICHER) ---
         class AIService {
-            constructor() { this.key = ""; } // Dummy für Kompatibilität
+            constructor() { this.key = ""; } 
             loadKey(userId) {}
             saveKey(userId, key) {}
-            hasKey() { return true; } // Immer wahr, da Backend den Key hat
+            hasKey() { return true; }
             
             async call(prompt, userId, isJson = false, contextContent = null) {
-                if (!userId) throw new Error("User ID missing");
                 const response = await fetch(`/api/chat`, { 
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ query: prompt, user_id: userId, is_json: isJson, context_content: contextContent }) 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ 
+                        query: prompt,
+                        user_id: userId, 
+                        is_json: isJson,
+                        context_content: contextContent 
+                    }) 
                 });
-                if(!response.ok) throw new Error(`API Error`);
+                
+                if(!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || `API Error (${response.status})`);
+                }
+                
                 const data = await response.json();
-                return data.quizJSON || data.answer || data.message || "Keine Antwort.";
+                return data.quizJSON || data.answer; 
             }
         }
 
@@ -333,9 +354,7 @@
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), 
-                    // AI Key Modal Elemente entfernt
-                    emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), keyModal: document.getElementById('apiKeyModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), aiKey: document.getElementById('aiKey'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -354,16 +373,23 @@
             async login() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { const user = await this.db.login(email, pass); this.onLoginSuccess(user); } 
+                try { 
+                    const user = await this.db.login(email, pass); 
+                    this.onLoginSuccess(user); 
+                } 
                 catch(e) { this.dom.authError.innerText = "Failed: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async signup() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { await this.db.signup(email, pass); alert("Please check email to verify account!"); } 
+                try { 
+                    await this.db.signup(email, pass); 
+                    alert("Please check email to verify account!"); 
+                } 
                 catch(e) { this.dom.authError.innerText = "Error: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async logout() { this.db.logout(); location.reload(); }
+            
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
@@ -387,7 +413,13 @@
             }
 
             async loadDashboard() { 
-                try { this.currentData = await this.db.getAll(); } catch(e) { this.currentData = []; console.error(e); }
+                try {
+                    this.currentData = await this.db.getAll(); 
+                } catch(e) {
+                    this.currentData = [];
+                    console.error(e);
+                    this.addBubble("⚠️ Fehler beim Laden.", false);
+                }
                 const unread = this.currentData.filter(i => !i.isRead);
                 const read = this.currentData.filter(i => i.isRead);
                 this.dom.countUnread.innerText = `${unread.length} Sources`;
@@ -433,57 +465,16 @@
                 } catch(e){ console.error(e); this.addBubble("❌ PDF Error: " + e.message, false); } 
             }
 
-            // --- CITATION VIEWER ---
-            openSourceContext(pageNum) {
-                if (!this.activeCitationItem) return;
-                const item = this.activeCitationItem;
-                this.dom.sourceTitle.innerText = item.topic;
-                this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
-                this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
-                this.dom.sourceContent.scrollTop = 0;
-                this.dom.sourceModal.classList.remove('hidden');
-
-                setTimeout(() => {
-                    let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
-                    rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
-                    rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
-                    this.dom.sourceContent.innerHTML = rawHtml;
-                    setTimeout(() => {
-                        const element = document.getElementById(`page-${pageNum}`);
-                        if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } 
-                        else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; }
-                    }, 100);
-                }, 50);
-            }
-            
-            async setContext(id) { 
-                const item = await this.db.getById(id);
-                if (item) {
-                    this.activeCitationItem = item;
-                    this.dom.contextName.innerText = item.topic;
-                    this.dom.contextBar.classList.remove('hidden');
-                    this.dom.listModal.classList.add('hidden');
-                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
-                }
-                return item;
-            }
-
-            clearContext() {
-                this.activeCitationItem = null;
-                this.dom.contextBar.classList.add('hidden');
-                this.addBubble("📂 Context cleared.", false);
-            }
-
             async handleInput(t=null){
                 const text=t||this.dom.input.value.trim(); if(!text)return; 
                 if(!t)this.dom.input.value=''; 
                 this.addBubble(text,true);
-                
                 let prompt = text;
-                let contextContent = null; // Wichtig: Kontext mitgeben!
-                
+                let contextContent = null; 
                 if (this.activeCitationItem) {
-                    const i = this.activeCitationItem;
+                    let i = this.activeCitationItem;
+                    const fresh = this.currentData.find(x => x.id === i.id);
+                    if(fresh) i = fresh;
                     const contextLimit = 500000; 
                     contextContent = (i.fullText || "").substring(0, contextLimit);
                     prompt = `You are an assistant helping with the source: "${i.topic}". SOURCE CONTENT: ${contextContent} USER QUESTION: ${text} INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.`;
@@ -500,7 +491,7 @@
                          this.addBubble("❓ Quiz", true);
                          this.renderQuiz(res);
                     } else {
-                        const safeText = typeof res === 'object' ? JSON.stringify(res) : res;
+                        const safeText = typeof res === 'object' ? (res.answer || JSON.stringify(res)) : res;
                         this.addBubble(safeText, false); 
                     }
                 } 
@@ -512,11 +503,9 @@
                     const i = await this.db.getById(id);
                     if (!i) return;
                     this.setContext(id);
-
                     const cleanText = (i.fullText || "").substring(0, 500000); 
                     let prompt = "", display = "";
                     let isJson = false;
-
                     if (type === 'summary') {
                          prompt = PROMPT_TEMPLATES.summary(cleanText, i.topic);
                          display = `📝 Summarize`;
@@ -531,15 +520,69 @@
                     this.addBubble("❌ System Error: " + e.message, false);
                 }
             }
+
+            async toggleRead(id, viewType) { 
+                const i = await this.db.getById(id); 
+                if(i) { 
+                    const newStatus = !i.isRead;
+                    await this.db.updateReadStatus(id, newStatus);
+                    this.openList(viewType); 
+                    this.loadDashboard(); 
+                } 
+            }
+            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
             
-            // --- RENDERERS ---
+            showLoading(s){
+                const e=document.getElementById('loader'); if(e) e.remove();
+                if(s){
+                    const d=document.createElement('div'); d.id='loader';
+                    d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';
+                    this.dom.chat.appendChild(d); this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
+                }
+            }
+
+            openSourceContext(pageNum) {
+                if (!this.activeCitationItem) return;
+                const item = this.activeCitationItem;
+                this.dom.sourceTitle.innerText = item.topic;
+                this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
+                this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
+                this.dom.sourceContent.scrollTop = 0;
+                this.dom.sourceModal.classList.remove('hidden');
+                setTimeout(() => {
+                    let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+                    rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
+                    rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
+                    this.dom.sourceContent.innerHTML = rawHtml;
+                    setTimeout(() => {
+                        const element = document.getElementById(`page-${pageNum}`);
+                        if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } 
+                        else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; }
+                    }, 500);
+                }, 100);
+            }
+            
+            setContext(id) { 
+                const item = this.currentData.find(item => item.id === id);
+                if (item) {
+                    this.activeCitationItem = item;
+                    this.dom.contextName.innerText = item.topic;
+                    this.dom.contextBar.classList.remove('hidden');
+                    this.dom.listModal.classList.add('hidden');
+                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
+                }
+                return item;
+            }
+            clearContext() { this.activeCitationItem = null; this.dom.contextBar.classList.add('hidden'); this.addBubble("📂 Context cleared.", false); }
+            viewDatabase() { this.openList('read'); }
+            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
+
             addBubble(text, isUser) {
                 if (!text) return; 
                 const d = document.createElement('div');
                 d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
                 let safeText = typeof text === 'string' ? text : JSON.stringify(text);
                 let html = isUser ? safeText : marked.parse(safeText);
-                
                 if(!isUser) {
                     html = html.replace(/(?:\[+|\[|\(|^|\s)Page\s*(\d+)(?:\]+|\)|\]|\.|,|$)/gi, ` <button class="citation-btn" onclick="app.openSourceContext($1)">Page $1</button> `);
                     d.innerHTML = `<div class="${isUser?'bg-slate-100':'prose prose-slate'} px-4 py-2 rounded-lg max-w-[85%] shadow-sm border border-slate-100">${html}</div>`;
@@ -568,15 +611,6 @@
                     }; o.appendChild(b);
                 });
                 this.dom.chat.appendChild(v); this.dom.chat.scrollTop=this.dom.chat.scrollHeight;
-            }
-
-            showLoading(s){
-                const e=document.getElementById('loader'); if(e) e.remove();
-                if(s){
-                    const d=document.createElement('div'); d.id='loader';
-                    d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';
-                    this.dom.chat.appendChild(d); this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
-                }
             }
 
             renderCards(data) { 
@@ -610,11 +644,6 @@
                     return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
                 }).join('');
             }
-            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
-            async toggleRead(id, viewType) { const i=await this.db.getById(id); if(i){ i.isRead=!i.isRead; await this.db.add(i); this.openList(viewType); this.loadDashboard(); } }
-            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
-            async clearDatabase() { if(confirm("Delete All?")) { await this.db.clear(); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
-            viewDatabase() { this.openList('read'); }
         }
         window.app = new DashboardApp();
     </script>
