@@ -1,3 +1,4 @@
+<!-- ECHOMIND FINAL: Quiz Colors + Working Page Links -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,6 +18,7 @@
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+    <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
@@ -32,6 +34,7 @@
         .is-read:hover { opacity: 1; background-color: white; }
         .yt-thumbnail { aspect-ratio: 16/9; background-size: cover; background-position: center; border-radius: 0.5rem; margin-bottom: 0.75rem; }
         
+        /* Citation Button Style */
         .citation-btn {
             display: inline-flex; align-items: center; gap: 4px;
             background-color: #e0e7ff; color: #4338ca;
@@ -45,24 +48,43 @@
         .citation-btn:hover { background-color: #4338ca; color: white; transform: translateY(-1px); }
         .citation-btn::before { content: "\f02d"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
 
+        /* Source Viewer Styles */
         #sourceContent {
             background-color: #ffffff; color: #334155; font-family: 'Georgia', serif;
             line-height: 1.8; padding: 3rem; max-width: 100%; margin: 0 auto;
         }
+
         .page-marker {
-            display: block; border-bottom: 2px solid #e2e8f0; margin: 4rem 0 2rem 0;
-            padding-bottom: 0.5rem; font-family: sans-serif; font-weight: 700;
-            color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;
-            letter-spacing: 0.1em; text-align: center; scroll-margin-top: 120px;
+            display: block;
+            border-bottom: 2px solid #e2e8f0;
+            margin: 4rem 0 2rem 0;
+            padding-bottom: 0.5rem;
+            font-family: sans-serif;
+            font-weight: 700;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            text-align: center;
+            scroll-margin-top: 120px;
         }
-        .highlight-section { animation: highlight-pulse 3s ease-out forwards; background-color: rgba(253, 224, 71, 0.3); }
-        @keyframes highlight-pulse { 0% { background-color: rgba(253, 224, 71, 0.8); } 100% { background-color: transparent; } }
+
+        .highlight-section {
+            animation: highlight-pulse 3s ease-out forwards;
+            background-color: rgba(253, 224, 71, 0.3);
+        }
+
+        @keyframes highlight-pulse {
+            0% { background-color: rgba(253, 224, 71, 0.8); } 100% { background-color: transparent; }
+        }
+        
         .katex { font-size: 1.1em; }
         @media (max-width: 640px) { .mobile-hide { display: none; } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
+    <!-- Navigation -->
     <nav class="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
         <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
             <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-indigo-200 shadow-lg">E</div>
@@ -70,13 +92,19 @@
         </div>
         <div class="flex items-center gap-3">
             <div id="userInfo" class="text-xs font-medium text-slate-500 hidden sm:block"></div>
-            <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out"><i class="fa-solid fa-right-from-bracket"></i></button>
-            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-indigo-600 transition border border-slate-200 rounded px-2 py-1 ml-1" title="AI Settings"><i class="fa-solid fa-robot"></i></button>
+            <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+            <button onclick="app.showKeyModal()" class="text-xs text-slate-400 hover:text-indigo-600 transition border border-slate-200 rounded px-2 py-1 ml-1" title="AI Settings">
+                <i class="fa-solid fa-robot"></i>
+            </button>
         </div>
     </nav>
 
+    <!-- Main Content -->
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
         
+        <!-- Header Controls -->
         <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
@@ -84,27 +112,33 @@
             </div>
             <div class="flex gap-2">
                 <input type="file" id="pdfInput" accept=".pdf" class="hidden">
-                <button onclick="app.viewDatabase()" class="text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition shadow-sm border border-slate-200"><i class="fa-solid fa-list"></i> List</button>
-                <button onclick="document.getElementById('pdfInput').click()" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm shadow-indigo-200 hover:shadow-indigo-300"><i class="fa-solid fa-plus"></i> PDF Upload</button>
+                <button onclick="app.viewDatabase()" class="text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition shadow-sm border border-slate-200">
+                    <i class="fa-solid fa-list"></i> List
+                </button>
+                <button onclick="document.getElementById('pdfInput').click()" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm shadow-indigo-200 hover:shadow-indigo-300">
+                    <i class="fa-solid fa-plus"></i> PDF Upload
+                </button>
             </div>
         </div>
 
+        <!-- TABS -->
         <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             <button onclick="app.openList('unread')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition text-left group relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-regular fa-bookmark text-6xl text-indigo-600"></i></div>
                 <h3 class="font-bold text-lg text-slate-800">Inbox (Unread)</h3>
-                <p class="text-sm text-slate-500 mt-1">New sources.</p>
+                <p class="text-sm text-slate-500 mt-1">New sources via extension or upload.</p>
                 <div class="mt-4 text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full w-fit" id="countUnread">0 Sources</div>
             </button>
 
             <button onclick="app.openList('read')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-200 transition text-left group relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-solid fa-book-open text-6xl text-emerald-600"></i></div>
                 <h3 class="font-bold text-lg text-slate-800">Notebook (Read)</h3>
-                <p class="text-sm text-slate-500 mt-1">Ready for Deep Dive.</p>
+                <p class="text-sm text-slate-500 mt-1">Ready for Deep Dive & Quiz.</p>
                 <div class="mt-4 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full w-fit" id="countRead">0 Sources</div>
             </button>
         </div>
 
+        <!-- Cards Grid -->
         <div class="w-full mb-10">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Deep Dive</h2>
@@ -119,12 +153,15 @@
         <div id="chatContainer" class="w-full flex flex-col gap-6 mb-4"></div>
     </main>
 
+    <!-- Footer / Chat Input with Context Bar -->
     <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 z-20">
         <div class="max-w-3xl mx-auto relative">
+            <!-- Context Bar -->
             <div id="contextBar" class="hidden absolute -top-10 left-0 right-0 flex justify-between items-center bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-t-lg text-xs font-medium shadow-sm">
                 <span class="truncate max-w-[85%] flex items-center"><i class="fa-solid fa-link mr-2"></i>Chatting with: <span id="contextName" class="font-bold ml-1">...</span></span>
                 <button onclick="app.clearContext()" class="hover:text-indigo-900 p-1"><i class="fa-solid fa-xmark"></i></button>
             </div>
+            
             <div class="flex gap-2">
                 <textarea id="mainInput" rows="1" class="flex-grow p-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 resize-none text-slate-800 placeholder-slate-400 text-sm" placeholder="Ask a question..."></textarea>
                 <button id="sendBtn" class="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center transition-colors"><i class="fa-solid fa-arrow-up text-sm"></i></button>
@@ -132,6 +169,7 @@
         </div>
     </footer>
 
+    <!-- Auth Modal -->
     <div id="authModal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white p-8 rounded-2xl max-w-sm w-full shadow-2xl text-center relative animate-fade-in">
             <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mx-auto mb-4 text-xl font-bold">E</div>
@@ -147,6 +185,7 @@
         </div>
     </div>
 
+    <!-- AI Key Modal -->
     <div id="apiKeyModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl text-center relative animate-fade-in">
             <button onclick="document.getElementById('apiKeyModal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-300 hover:text-slate-500"><i class="fa-solid fa-xmark"></i></button>
@@ -157,6 +196,7 @@
         </div>
     </div>
 
+    <!-- List Modal -->
     <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
@@ -167,6 +207,7 @@
         </div>
     </div>
 
+    <!-- Source Viewer Modal -->
     <div id="sourceModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white w-full max-w-3xl h-[90vh] rounded-2xl flex flex-col shadow-2xl animate-fade-in m-4 overflow-hidden">
             <div class="flex justify-between items-center p-4 border-b border-slate-100 bg-white z-10">
@@ -176,6 +217,7 @@
                 </div>
                 <button onclick="document.getElementById('sourceModal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
             </div>
+            <!-- Document Reader View -->
             <div class="flex-grow overflow-y-auto p-8 bg-slate-50 scroll-smooth text-slate-700" id="sourceContent"></div>
         </div>
     </div>
@@ -184,19 +226,29 @@
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
+        // --- PROMPT ENGINEERING ---
         const PROMPT_TEMPLATES = {
             summary: (context, title) => `
                 Analyze the following content from "${title}".
                 Summarize the key points concisely. 
-                IMPORTANT: Whenever you state a fact, YOU MUST cite the page number like this: [[Page 1]] or [[Page 5]].
+                
+                FORMATTING RULES:
+                1. Use LaTeX for math: $E=mc^2$ (inline) or $$E=mc^2$$ (block).
+                2. IMPORTANT: Cite page numbers for every fact using this exact format: [[Page 5]].
+                
                 CONTENT:
                 ${context}
             `,
             quiz: (context, title) => `
                 Create a multiple-choice question based on "${title}".
-                Ensure all math formulas use LaTeX syntax ($...$).
+                
+                FORMATTING RULES:
+                1. Return valid JSON.
+                2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac".
+                3. Explanation must cite the page number: [[Page X]].
+                
                 JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
-                The explanation MUST cite the page number like this: [[Page X]].
+                
                 CONTENT:
                 ${context}
             `
@@ -210,7 +262,7 @@
             async signup(email, password) { const { data, error } = await this.client.auth.signUp({ email, password }); if (error) throw error; return data.user; }
             async logout() { await this.client.auth.signOut(); this.user = null; }
             toRow(item) { return { id: item.id, user_id: this.user.id, topic: item.topic, description: item.description, full_text: item.fullText, icon: item.icon, color: item.color, timestamp: item.timestamp, is_pdf: item.isPdf, is_youtube: item.isYoutube, is_read: item.isRead, thumbnail: item.thumbnail, url: item.url, transcript_status: item.transcriptStatus }; }
-            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status }; }
+            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcript_status: row.transcript_status }; }
             async getAll() { if (!this.client || !this.user) return []; const { data, error } = await this.client.from(this.tableName).select('*').order('timestamp', { ascending: false }); if (error) return []; return data.map(this.fromRow); }
             async add(item) { if (!this.client || !this.user) return; const row = this.toRow(item); await this.client.from(this.tableName).upsert(row); }
             async getById(id) { if (!this.client) return null; const { data } = await this.client.from(this.tableName).select('*').eq('id', id).single(); return data ? this.fromRow(data) : null; }
@@ -353,10 +405,9 @@
                 await this.db.add(data); await this.loadDashboard(); 
             }
 
-            // --- SMART PDF PARSER (UNLIMITED) ---
             async handlePdfUpload(event) { 
                 const file = event.target.files[0]; if(!file) return; 
-                this.addBubble("Processing PDF (reading all pages)...", true);
+                this.addBubble("Processing PDF...", true);
                 try { 
                     const p = await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; 
                     let t = `SOURCE: ${file.name}\nTYPE: PDF Document\n\n`; 
@@ -375,10 +426,11 @@
                 } catch(e){ console.error(e); this.addBubble("❌ PDF Error: " + e.message, false); } 
             }
 
-            // --- CITATION VIEWER (ROBUST SCROLLING FIX) ---
+            // --- CITATION VIEWER (FIXED: ROBUST REGEX) ---
             openSourceContext(pageNum) {
                 if (!this.activeCitationItem) return;
                 const item = this.activeCitationItem;
+                
                 this.dom.sourceTitle.innerText = item.topic;
                 this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
                 this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
@@ -387,8 +439,13 @@
 
                 setTimeout(() => {
                     let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+                    
+                    // Format 1: [[PAGE 1]]
                     rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
-                    try { rawHtml = rawHtml.replace(/(?<!>)\s*---\s*PAGE\s*(\d+)\s*---\s*/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>'); } catch(e) {}
+                    
+                    // Format 2: --- PAGE 1 --- (Regex simplified, lookbehind removed for compatibility)
+                    // Matches "- PAGE 1 -", "-- PAGE 1 --", "--- PAGE 1 ---" etc.
+                    rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
 
                     this.dom.sourceContent.innerHTML = rawHtml;
 
@@ -409,7 +466,6 @@
                 }, 50);
             }
 
-            // --- CONTEXT HANDLING (FIXED) ---
             async setContext(id) {
                 const item = await this.db.getById(id);
                 if (item) {
@@ -444,7 +500,7 @@
                         ${content}
                         USER QUESTION:
                         ${text}
-                        INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible.
+                        INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.
                     `;
                 }
                 this.processAI(prompt);
@@ -456,11 +512,22 @@
                 try {
                     const res = await this.ai.call(actualPrompt, jsonMode);
                     this.showLoading(false);
-                    if(jsonMode) return JSON.parse(res);
-                    this.addBubble(res, false);
+                    
+                    let parsedData;
+                    if(jsonMode) {
+                        try { parsedData = JSON.parse(res); } 
+                        catch(parseError) {
+                            const jsonMatch = res.match(/\{[\s\S]*\}/);
+                            if(jsonMatch) parsedData = JSON.parse(jsonMatch[0]);
+                            else throw new Error("Invalid JSON from AI");
+                        }
+                        this.renderQuiz(parsedData);
+                    } else {
+                         this.addBubble(res, false);
+                    }
                 } catch(e) {
                     this.showLoading(false);
-                    if(e.message==="MISSING_KEY"){this.addBubble("⚠️ <b>No API Key found.</b> Click key icon 🔑.",false); this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI.",false);} 
+                    if(e.message==="MISSING_KEY"){this.addBubble("⚠️ <b>No API Key found.</b> Click key icon 🔑.",false); this.showKeyModal();}else{this.addBubble("❌ Error connecting to AI: " + e.message, false);} 
                     throw e;
                 }
             }
@@ -474,7 +541,7 @@
 
             async aiAction(id, type) { 
                 try {
-                    const i = await this.setContext(id); // Wait for context!
+                    const i = await this.setContext(id); 
                     if (!i) return;
 
                     const cleanText = (i.fullText || "").substring(0, 500000); 
@@ -489,8 +556,7 @@
                     }
 
                     if(type==='quiz') {
-                        const data = await this.processHiddenPrompt(display, prompt, true);
-                        this.renderQuiz(data);
+                        await this.processHiddenPrompt(display, prompt, true);
                     } else {
                         await this.processHiddenPrompt(display, prompt);
                     }
@@ -506,7 +572,9 @@
                 let html = isUser ? text : marked.parse(text);
                 
                 if(!isUser) {
+                    // Aggressive Citation Replacement for Chat
                     html = html.replace(/(?:\[+|\[|\(|^|\s)Page\s*(\d+)(?:\]+|\)|\]|\.|,|$)/gi, ` <button class="citation-btn" onclick="app.openSourceContext($1)">Page $1</button> `);
+                    
                     d.innerHTML = `<div class="${isUser?'bg-slate-100':'prose prose-slate'} px-4 py-2 rounded-lg max-w-[85%] shadow-sm border border-slate-100">${html}</div>`;
                     try { renderMathInElement(d, { delimiters: [ {left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false} ], throwOnError: false }); } catch(e) {}
                 } else {
@@ -517,85 +585,74 @@
                 this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
             }
             
-            // UPDATE: Render Quiz with Markdown & Math Support
-            renderQuiz(d) {
-                const v = document.createElement('div');
-                v.className = "flex gap-4 w-full message-enter";
+            // --- QUIZ RENDERER (WITH COLORS & MATH) ---
+            renderQuiz(d){
+                const v=document.createElement('div');
+                v.className="flex gap-4 w-full message-enter";
                 
-                // 1. Parse Question Markdown
-                const questionHtml = marked.parse(d.question);
-                
-                v.innerHTML = `
+                // Markdown for Question
+                const qHtml = marked.parse(d.question);
+                v.innerHTML=`
                     <div class="w-full max-w-md bg-white border rounded-xl p-4 shadow-sm">
-                        <div class="font-bold text-sm mb-3 prose prose-slate">${questionHtml}</div>
+                        <div class="font-bold text-sm mb-4 prose prose-slate">${qHtml}</div>
                         <div id="opts" class="space-y-2"></div>
-                        <div id="res" class="hidden mt-3 text-sm p-3 bg-slate-50 rounded border border-slate-100"></div>
+                        <div id="res" class="hidden mt-4 text-sm p-3 bg-slate-50 rounded-lg border border-slate-100"></div>
                     </div>
                 `;
                 
-                const o = v.querySelector('#opts');
-                
-                d.options.forEach((opt, i) => {
-                    const b = document.createElement('button');
-                    b.className = "w-full text-left text-sm p-2 border rounded hover:bg-slate-50 transition-colors";
+                const o=v.querySelector('#opts');
+
+                // Math in Question Body
+                try { renderMathInElement(v, { delimiters: [{left: '$', right: '$', display: false}], throwOnError: false }); } catch(e){}
+
+                d.options.forEach((opt,i)=>{
+                    const b=document.createElement('button');
+                    b.className="w-full text-left text-sm p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all";
+                    // Inline markdown for options
+                    b.innerHTML = marked.parseInline(opt);
                     
-                    // 2. Parse Option Markdown (Inline to avoid <p> tags)
-                    b.innerHTML = marked.parseInline(opt); 
-                    
-                    b.onclick = () => {
-                        // Disable buttons
-                        o.querySelectorAll('button').forEach(btn => btn.disabled = true);
+                    // Math in Option
+                    try { renderMathInElement(b, { delimiters: [{left: '$', right: '$', display: false}], throwOnError: false }); } catch(e){}
+
+                    b.onclick=()=>{
+                        // Disable inputs
+                        const allBtns = o.querySelectorAll('button');
+                        allBtns.forEach(btn => btn.disabled = true);
                         
-                        // Highlight correct/wrong
-                        const isCorrect = i === d.correctIndex;
-                        b.className = isCorrect 
-                            ? "w-full text-left text-sm p-2 border border-emerald-500 bg-emerald-50 text-emerald-700 rounded font-medium"
-                            : "w-full text-left text-sm p-2 border border-red-500 bg-red-50 text-red-700 rounded";
+                        const isCorrect = i===d.correctIndex;
+                        
+                        // Color Logic
+                        if(isCorrect) {
+                            b.className = "w-full text-left text-sm p-3 border border-emerald-500 bg-emerald-50 text-emerald-700 rounded-xl font-medium shadow-sm";
+                            b.innerHTML += ' <i class="fa-solid fa-circle-check float-right mt-1"></i>';
+                        } else {
+                            b.className = "w-full text-left text-sm p-3 border border-red-500 bg-red-50 text-red-700 rounded-xl";
+                            b.innerHTML += ' <i class="fa-solid fa-circle-xmark float-right mt-1"></i>';
                             
-                        if (!isCorrect) {
-                             // Show correct one if user was wrong
-                             const correctBtn = o.children[d.correctIndex];
-                             if(correctBtn) correctBtn.className = "w-full text-left text-sm p-2 border border-emerald-500 bg-emerald-50 text-emerald-700 rounded font-medium";
+                            // Reveal correct answer
+                            const correctBtn = allBtns[d.correctIndex];
+                            if(correctBtn) {
+                                correctBtn.className = "w-full text-left text-sm p-3 border border-emerald-500 bg-emerald-50 text-emerald-700 rounded-xl font-medium";
+                                correctBtn.innerHTML += ' <i class="fa-solid fa-check float-right mt-1"></i>';
+                            }
                         }
 
-                        // 3. Render Explanation with Math & Links
+                        // Explanation with Citations
                         let expl = d.explanation;
                         expl = expl.replace(/(?:\[+|\[|\(|^|\s)Page\s*(\d+)(?:\]+|\)|\]|\.|,|$)/gi, ` <button class="citation-btn" onclick="app.openSourceContext($1)">Page $1</button> `);
                         expl = marked.parse(expl);
 
                         const resDiv = v.querySelector('#res');
-                        resDiv.innerHTML = (isCorrect ? "<div class='text-emerald-600 font-bold mb-1'>Correct! 🎉</div>" : "<div class='text-red-600 font-bold mb-1'>Incorrect</div>") + `<div class="prose prose-sm">${expl}</div>`;
+                        resDiv.innerHTML=(isCorrect?"<div class='text-emerald-600 font-bold mb-2'>Correct! 🎉</div>":"<div class='text-red-600 font-bold mb-2'>Incorrect</div>")+`<div class="prose prose-sm text-slate-600">${expl}</div>`;
                         resDiv.classList.remove('hidden');
                         
-                        // 4. Render Math in Result
-                        try {
-                            renderMathInElement(resDiv, {
-                                delimiters: [
-                                    {left: '$$', right: '$$', display: true},
-                                    {left: '$', right: '$', display: false}
-                                ],
-                                throwOnError: false
-                            });
-                        } catch(e) {}
+                        // Math in Result
+                        try { renderMathInElement(resDiv, { delimiters: [{left: '$', right: '$', display: false}], throwOnError: false }); } catch(e){}
                     };
                     o.appendChild(b);
                 });
-
                 this.dom.chat.appendChild(v);
-                this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
-
-                // 5. Render Math in Question & Options
-                try {
-                    renderMathInElement(v, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false},
-                            {left: '\\(', right: '\\)', display: false},
-                            {left: '\\[', right: '\\]', display: true}
-                        ],
-                        throwOnError: false
-                    });
-                } catch(e) { console.warn("Math render error (quiz)", e); }
+                this.dom.chat.scrollTop=this.dom.chat.scrollHeight;
             }
 
             renderCards(data) { 
