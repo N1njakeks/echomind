@@ -1,31 +1,44 @@
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Wir brauchen hier KEIN Google/OpenAI mehr, nur Supabase
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-// ACHTUNG: Wir nutzen hier eine neue Variable für den Key!
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
+
+// Hilfsfunktion zum Parsen des Body (wichtig für Vercel)
+async function parseBody(req) {
+    if (req.body) return req.body;
+    try {
+        const chunks = [];
+        for await (const chunk of req) { chunks.push(chunk); }
+        const bodyStr = Buffer.concat(chunks).toString();
+        return JSON.parse(bodyStr || '{}');
+    } catch (e) { return {}; }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Nur POST erlaubt');
-
-  const { full_text, user_id, topic, is_pdf, id, is_read, update_only } = req.body;
+  
+  const body = await parseBody(req);
+  const { full_text, user_id, topic, is_pdf, id, is_read, update_only } = body;
 
   try {
-    // Update Logik (bleibt gleich)
+    // Fall A: Nur Status-Update (Gelesen/Ungelesen)
     if (update_only) {
-        const { error } = await supabase.from('items').update({ is_read }).eq('id', id).eq('user_id', user_id);
+        const { error } = await supabase
+            .from('items')
+            .update({ is_read })
+            .eq('id', id)
+            .eq('user_id', user_id);
+            
         if (error) throw error;
         return res.status(200).json({ success: true });
     }
 
-    // --- GEMINI TEIL ---
-    // Wir nutzen das 'text-embedding-004' Modell von Google
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-    
-    const result = await model.embedContent(full_text.substring(0, 9000)); // Gemini schafft viel Text!
-    const vector = result.embedding.values; // Das ist der Vektor für Supabase
+    // Fall B: Neues PDF speichern
+    if (!user_id || !full_text) {
+       return res.status(400).json({ message: "Fehler: User ID oder Text fehlt." });
+    }
 
-    // Speichern
+    // WICHTIG: Wir speichern NUR die Daten, KEIN embedding!
     const { error } = await supabase
       .from('items')
       .insert({
@@ -35,8 +48,8 @@ export default async function handler(req, res) {
         full_text: full_text,
         is_pdf: is_pdf || false,
         is_read: false,
-        timestamp: Date.now(),
-        embedding: vector
+        timestamp: Date.now()
+        // HIER FEHLT JETZT ABSICHTLICH 'embedding'
       });
 
     if (error) throw error;
@@ -44,7 +57,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
 
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return res.status(500).json({ error: error.message });
+    console.error("SAVE ERROR:", error.message);
+    return res.status(500).json({ message: "Fehler beim Speichern.", details: error.message });
   }
 }
