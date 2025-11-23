@@ -28,30 +28,56 @@
         .message-enter { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
+        .is-read { opacity: 0.6; background-color: #f8fafc; }
+        .is-read:hover { opacity: 1; background-color: white; }
         .yt-thumbnail { aspect-ratio: 16/9; background-size: cover; background-position: center; border-radius: 0.5rem; margin-bottom: 0.75rem; }
         
+        /* Citation Button Style */
         .citation-btn {
             display: inline-flex; align-items: center; gap: 4px;
             background-color: #e0e7ff; color: #4338ca;
             padding: 2px 8px; border-radius: 12px;
             font-size: 0.75em; font-weight: 600; cursor: pointer;
             transition: all 0.2s; vertical-align: baseline; border: 1px solid #c7d2fe;
-            text-decoration: none !important; white-space: nowrap; margin: 0 2px;
+            text-decoration: none !important;
+            white-space: nowrap;
+            margin: 0 2px;
         }
         .citation-btn:hover { background-color: #4338ca; color: white; transform: translateY(-1px); }
         .citation-btn::before { content: "\f02d"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
 
+        /* Source Viewer Styles */
         #sourceContent {
             background-color: #ffffff; color: #334155; font-family: 'Georgia', serif;
             line-height: 1.8; padding: 3rem; max-width: 100%; margin: 0 auto;
         }
 
         .page-marker {
-            display: block; border-bottom: 2px solid #e2e8f0; margin: 4rem 0 2rem 0;
-            padding-bottom: 0.5rem; font-family: sans-serif; font-weight: 700;
-            color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;
-            letter-spacing: 0.1em; text-align: center; scroll-margin-top: 120px;
+            display: block;
+            border-bottom: 2px solid #e2e8f0;
+            margin: 4rem 0 2rem 0;
+            padding-bottom: 0.5rem;
+            font-family: sans-serif;
+            font-weight: 700;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            text-align: center;
+            scroll-margin-top: 120px;
         }
+
+        .highlight-section {
+            animation: highlight-pulse 3s ease-out forwards;
+            background-color: rgba(253, 224, 71, 0.3);
+        }
+
+        @keyframes highlight-pulse {
+            0% { background-color: rgba(253, 224, 71, 0.8); } 100% { background-color: transparent; }
+        }
+        
+        .katex { font-size: 1.1em; }
+        @media (max-width: 640px) { .mobile-hide { display: none; } }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -66,10 +92,11 @@
             <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
                 <i class="fa-solid fa-right-from-bracket"></i>
             </button>
-        </div>
+            </div>
     </nav>
 
     <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
+        
         <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
@@ -144,14 +171,14 @@
             <div id="authError" class="text-red-500 text-xs mt-4 hidden"></div>
         </div>
     </div>
-    
+
     <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
         <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
                 <div><h3 class="font-bold text-xl text-slate-800" id="listTitle">List</h3><p class="text-xs text-slate-500 mt-1" id="listSubtitle">Cloud Data</p></div>
                 <button onclick="document.getElementById('listModal').classList.add('hidden'); app.loadDashboard();" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="flex-grow overflow-y-auto p-6"><div id="listContent" class="space-y-3"></div></div>
+            <div class="flex-grow overflow-y-auto bg-slate-50 p-6"><div id="listContent" class="space-y-3"></div></div>
         </div>
     </div>
 
@@ -169,20 +196,39 @@
     </div>
 
     <script>
+        // ANON KEYS (Für Client-Init)
         const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
+        // --- PROMPT TEMPLATES (Alle alten Templates sind wieder da!) ---
         const PROMPT_TEMPLATES = {
-            summary: (context, title) => {
-                const cleanText = (context || "").substring(0, 500000); 
-                return `Analyze the following content from "${title}". Summarize the key points concisely. FORMATTING RULES: 1. Use LaTeX for math: $E=mc^2$. 2. IMPORTANT: Cite page numbers for every fact using this exact format: [[Page 5]]. CONTENT: ${cleanText}`;
-            },
-            quiz: (context, title) => {
-                const cleanText = (context || "").substring(0, 500000);
-                return `Create a multiple-choice question based on "${title}". FORMATTING RULES: 1. Return valid JSON. 2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac". 3. Explanation must cite the page number: [[Page X]]. JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." } CONTENT: ${cleanText}`;
-            }
+            summary: (context, title) => `
+                Analyze the following content from "${title}".
+                Summarize the key points concisely. 
+                
+                FORMATTING RULES:
+                1. Use LaTeX for math: $E=mc^2$ (inline) or $$E=mc^2$$ (block).
+                2. IMPORTANT: Cite page numbers for every fact using this exact format: [[Page 5]].
+                
+                CONTENT:
+                ${context}
+            `,
+            quiz: (context, title) => `
+                Create a multiple-choice question based on "${title}".
+                
+                FORMATTING RULES:
+                1. Return valid JSON.
+                2. Use LaTeX for math: $E=mc^2$. Escape backslashes in JSON string like "\\\\frac".
+                3. Explanation must cite the page number: [[Page X]].
+                
+                JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
+                
+                CONTENT:
+                ${context}
+            `
         };
 
+        // --- API CLIENT (Sichere Brücke zum Vercel Backend) ---
         class APIClient {
             async request(endpoint, method = 'GET', body = null) {
                 const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -196,13 +242,16 @@
             }
         }
 
+        // --- DATENBANK KLASSE ---
         class SupabaseDB {
             constructor() { 
+                this.client = null; 
                 this.tableName = 'items'; 
                 this.user = null; 
                 this.api = new APIClient();
                 this.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             }
+
             async checkUser() {
                  const storedUser = localStorage.getItem('echomind_user');
                  if (storedUser) {
@@ -216,6 +265,7 @@
                 const data = await this.api.request('auth/login', 'POST', { email, password });
                 this.user = data.user;
                 this.client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+                localStorage.setItem('echomind_user', JSON.stringify(this.user));
                 return this.user;
             }
             async signup(email, password) { 
@@ -233,56 +283,59 @@
             }
             async add(item) { 
                  if (!this.user) return; 
-                 await this.api.request('save-item', 'POST', { user_id: this.user.id, topic: item.topic, full_text: item.fullText, is_pdf: item.isPdf, is_read: item.isRead, timestamp: item.timestamp });
-            }
-            async delete(id) { 
-                if (!this.user) return; 
-                await this.api.request('items', 'DELETE', { id: id, user_id: this.user.id });
+                 await this.api.request('save-item', 'POST', {
+                     user_id: this.user.id, topic: item.topic, full_text: item.fullText, 
+                     is_pdf: item.isPdf, is_read: item.isRead, timestamp: item.timestamp
+                 });
             }
             async getById(id) { 
                 const data = await this.api.request(`items?user_id=${this.user.id}&id=${id}`);
                 return data.length > 0 ? this.fromRow(data[0]) : null;
             }
+            async delete(id) { 
+                if (!this.user) return; 
+                await this.api.request('items', 'DELETE', { id: id, user_id: this.user.id });
+            }
             async updateReadStatus(id, isRead) {
                 if (!this.user) return;
                 await this.api.request('save-item', 'POST', { id: id, user_id: this.user.id, is_read: isRead, update_only: true });
             }
-            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcriptStatus: row.transcript_status }; }
+
+            toRow(item) { return { id: item.id, user_id: this.user.id, topic: item.topic, description: item.description, full_text: item.fullText, icon: item.icon, color: item.color, timestamp: item.timestamp, is_pdf: item.isPdf, is_youtube: item.isYoutube, is_read: item.isRead, thumbnail: item.thumbnail, url: item.url, transcript_status: item.transcriptStatus }; }
+            fromRow(row) { return { id: parseInt(row.id), topic: row.topic, description: row.description, fullText: row.full_text || "", icon: row.icon, color: row.color, timestamp: parseInt(row.timestamp), isPdf: row.is_pdf, isYoutube: row.is_youtube, isRead: row.is_read, thumbnail: row.thumbnail, url: row.url, transcript_status: row.transcript_status }; }
         }
 
+        // --- AI SERVICE (WICHTIG: Keine Keys im Browser!) ---
         class AIService {
-            constructor() { } 
-            // Key-Management Funktionen entfernt, da Key im Backend
+            constructor() { this.key = ""; } // Dummy für Kompatibilität
             loadKey(userId) {}
             saveKey(userId, key) {}
-            hasKey() { return true; }
+            hasKey() { return true; } // Immer wahr, da Backend den Key hat
             
             async call(prompt, userId, isJson = false, contextContent = null) {
-                if (!userId) throw new Error("User ID missing for AI call");
+                if (!userId) throw new Error("User ID missing");
                 const response = await fetch(`/api/chat`, { 
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, 
                     body: JSON.stringify({ query: prompt, user_id: userId, is_json: isJson, context_content: contextContent }) 
                 });
-                if(!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || `API Error (${response.status})`);
-                }
+                if(!response.ok) throw new Error(`API Error`);
                 const data = await response.json();
-                return data.quizJSON || data.answer || data.message || "Keine Antwort erhalten."; 
+                return data.quizJSON || data.answer || data.message || "Keine Antwort.";
             }
         }
 
         class DashboardApp {
             constructor() {
                 this.db = new SupabaseDB();
-                this.api = new APIClient(); 
-                this.ai = new AIService(); 
+                this.ai = new AIService();
                 this.currentData = [];
                 this.notifiedIds = new Set();
                 this.activeCitationItem = null;
                 
                 this.dom = {
-                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
+                    input: document.getElementById('mainInput'), chat: document.getElementById('chatContainer'), cards: document.getElementById('cardsContainer'), emptyState: document.getElementById('emptyState'), pdfInput: document.getElementById('pdfInput'), authModal: document.getElementById('authModal'), 
+                    // AI Key Modal Elemente entfernt
+                    emailInput: document.getElementById('emailInput'), passInput: document.getElementById('passwordInput'), authError: document.getElementById('authError'), userInfo: document.getElementById('userInfo'), listModal: document.getElementById('listModal'), listTitle: document.getElementById('listTitle'), listContent: document.getElementById('listContent'), countUnread: document.getElementById('countUnread'), countRead: document.getElementById('countRead'), sourceModal: document.getElementById('sourceModal'), sourceTitle: document.getElementById('sourceTitle'), sourcePage: document.getElementById('sourcePage'), sourceContent: document.getElementById('sourceContent'), contextBar: document.getElementById('contextBar'), contextName: document.getElementById('contextName')
                 };
                 
                 document.getElementById('sendBtn').onclick = () => this.handleInput();
@@ -301,23 +354,16 @@
             async login() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { 
-                    const user = await this.db.login(email, pass); 
-                    this.onLoginSuccess(user); 
-                } 
+                try { const user = await this.db.login(email, pass); this.onLoginSuccess(user); } 
                 catch(e) { this.dom.authError.innerText = "Failed: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async signup() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { 
-                    await this.db.signup(email, pass); 
-                    alert("Please check email to verify account!"); 
-                } 
+                try { await this.db.signup(email, pass); alert("Please check email to verify account!"); } 
                 catch(e) { this.dom.authError.innerText = "Error: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async logout() { this.db.logout(); location.reload(); }
-            
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
@@ -341,13 +387,7 @@
             }
 
             async loadDashboard() { 
-                try {
-                    this.currentData = await this.db.getAll(); 
-                } catch(e) {
-                    this.currentData = [];
-                    console.error(e);
-                    this.addBubble("⚠️ Fehler beim Laden.", false);
-                }
+                try { this.currentData = await this.db.getAll(); } catch(e) { this.currentData = []; console.error(e); }
                 const unread = this.currentData.filter(i => !i.isRead);
                 const read = this.currentData.filter(i => i.isRead);
                 this.dom.countUnread.innerText = `${unread.length} Sources`;
@@ -393,17 +433,57 @@
                 } catch(e){ console.error(e); this.addBubble("❌ PDF Error: " + e.message, false); } 
             }
 
+            // --- CITATION VIEWER ---
+            openSourceContext(pageNum) {
+                if (!this.activeCitationItem) return;
+                const item = this.activeCitationItem;
+                this.dom.sourceTitle.innerText = item.topic;
+                this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
+                this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
+                this.dom.sourceContent.scrollTop = 0;
+                this.dom.sourceModal.classList.remove('hidden');
+
+                setTimeout(() => {
+                    let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+                    rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
+                    rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
+                    this.dom.sourceContent.innerHTML = rawHtml;
+                    setTimeout(() => {
+                        const element = document.getElementById(`page-${pageNum}`);
+                        if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } 
+                        else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; }
+                    }, 100);
+                }, 50);
+            }
+            
+            async setContext(id) { 
+                const item = await this.db.getById(id);
+                if (item) {
+                    this.activeCitationItem = item;
+                    this.dom.contextName.innerText = item.topic;
+                    this.dom.contextBar.classList.remove('hidden');
+                    this.dom.listModal.classList.add('hidden');
+                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
+                }
+                return item;
+            }
+
+            clearContext() {
+                this.activeCitationItem = null;
+                this.dom.contextBar.classList.add('hidden');
+                this.addBubble("📂 Context cleared.", false);
+            }
+
             async handleInput(t=null){
                 const text=t||this.dom.input.value.trim(); if(!text)return; 
                 if(!t)this.dom.input.value=''; 
                 this.addBubble(text,true);
+                
                 let prompt = text;
-                let contextContent = null; 
+                let contextContent = null; // Wichtig: Kontext mitgeben!
+                
                 if (this.activeCitationItem) {
-                    let i = this.activeCitationItem;
-                    // Fresh data check
-                    const fresh = this.currentData.find(x => x.id === i.id);
-                    if(fresh) i = fresh;
+                    const i = this.activeCitationItem;
                     const contextLimit = 500000; 
                     contextContent = (i.fullText || "").substring(0, contextLimit);
                     prompt = `You are an assistant helping with the source: "${i.topic}". SOURCE CONTENT: ${contextContent} USER QUESTION: ${text} INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.`;
@@ -432,9 +512,11 @@
                     const i = await this.db.getById(id);
                     if (!i) return;
                     this.setContext(id);
+
                     const cleanText = (i.fullText || "").substring(0, 500000); 
                     let prompt = "", display = "";
                     let isJson = false;
+
                     if (type === 'summary') {
                          prompt = PROMPT_TEMPLATES.summary(cleanText, i.topic);
                          display = `📝 Summarize`;
@@ -449,69 +531,15 @@
                     this.addBubble("❌ System Error: " + e.message, false);
                 }
             }
-
-            async toggleRead(id, viewType) { 
-                const i = await this.db.getById(id); 
-                if(i) { 
-                    const newStatus = !i.isRead;
-                    await this.db.updateReadStatus(id, newStatus);
-                    this.openList(viewType); 
-                    this.loadDashboard(); 
-                } 
-            }
-            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
             
-            showLoading(s){
-                const e=document.getElementById('loader'); if(e) e.remove();
-                if(s){
-                    const d=document.createElement('div'); d.id='loader';
-                    d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';
-                    this.dom.chat.appendChild(d); this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
-                }
-            }
-
-            openSourceContext(pageNum) {
-                if (!this.activeCitationItem) return;
-                const item = this.activeCitationItem;
-                this.dom.sourceTitle.innerText = item.topic;
-                this.dom.sourcePage.innerText = `Locating Page ${pageNum}...`;
-                this.dom.sourceContent.innerHTML = '<div class="text-center p-10 text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Rendering Document...</div>';
-                this.dom.sourceContent.scrollTop = 0;
-                this.dom.sourceModal.classList.remove('hidden');
-                setTimeout(() => {
-                    let rawHtml = item.fullText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
-                    rawHtml = rawHtml.replace(/\[\[\s*PAGE\s*(\d+)\s*\]\]/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
-                    rawHtml = rawHtml.replace(/-+\s*PAGE\s*(\d+)\s*-+/gi, '<div id="page-$1" class="page-marker">--- PAGE $1 ---</div>');
-                    this.dom.sourceContent.innerHTML = rawHtml;
-                    setTimeout(() => {
-                        const element = document.getElementById(`page-${pageNum}`);
-                        if (element) { element.scrollIntoView({ behavior: 'auto', block: 'start' }); element.classList.add('highlight-section'); this.dom.sourcePage.innerText = `Page ${pageNum}`; } 
-                        else { this.dom.sourcePage.innerText = `Page ${pageNum} not found`; }
-                    }, 500);
-                }, 100);
-            }
-            
-            setContext(id) { 
-                const item = this.currentData.find(item => item.id === id);
-                if (item) {
-                    this.activeCitationItem = item;
-                    this.dom.contextName.innerText = item.topic;
-                    this.dom.contextBar.classList.remove('hidden');
-                    this.dom.listModal.classList.add('hidden');
-                    this.addBubble(`📂 Context set to: "${item.topic}"`, false);
-                }
-                return item;
-            }
-            clearContext() { this.activeCitationItem = null; this.dom.contextBar.classList.add('hidden'); this.addBubble("📂 Context cleared.", false); }
-            viewDatabase() { this.openList('read'); }
-            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
-
+            // --- RENDERERS ---
             addBubble(text, isUser) {
                 if (!text) return; 
                 const d = document.createElement('div');
                 d.className = `flex w-full ${isUser ? 'justify-end' : 'justify-start'} message-enter`;
                 let safeText = typeof text === 'string' ? text : JSON.stringify(text);
                 let html = isUser ? safeText : marked.parse(safeText);
+                
                 if(!isUser) {
                     html = html.replace(/(?:\[+|\[|\(|^|\s)Page\s*(\d+)(?:\]+|\)|\]|\.|,|$)/gi, ` <button class="citation-btn" onclick="app.openSourceContext($1)">Page $1</button> `);
                     d.innerHTML = `<div class="${isUser?'bg-slate-100':'prose prose-slate'} px-4 py-2 rounded-lg max-w-[85%] shadow-sm border border-slate-100">${html}</div>`;
@@ -541,6 +569,52 @@
                 });
                 this.dom.chat.appendChild(v); this.dom.chat.scrollTop=this.dom.chat.scrollHeight;
             }
+
+            showLoading(s){
+                const e=document.getElementById('loader'); if(e) e.remove();
+                if(s){
+                    const d=document.createElement('div'); d.id='loader';
+                    d.innerHTML='<div class="flex gap-2 p-4"><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0.1s"></div></div>';
+                    this.dom.chat.appendChild(d); this.dom.chat.scrollTop = this.dom.chat.scrollHeight;
+                }
+            }
+
+            renderCards(data) { 
+                this.dom.cards.innerHTML = data.map(i => {
+                    const header = (i.isYoutube && i.thumbnail) 
+                        ? `<div class="yt-thumbnail shadow-sm relative" style="background-image:url('${i.thumbnail}')"><div class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold">Video</div></div>`
+                        : `<div class="flex justify-between mb-3"><div class="w-8 h-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center"><i class="${i.icon}"></i></div><span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold">Archive</span></div>`;
+                    return `
+                    <div class="p-4 rounded-xl border border-slate-200 bg-white hover:shadow-md transition flex flex-col h-full">
+                        ${header}
+                        <h3 class="font-bold text-sm mb-1 line-clamp-2" title="${i.topic}">${i.topic}</h3>
+                        <p class="text-xs text-slate-400 line-clamp-3 mb-4 flex-grow">${i.description}</p>
+                        <div class="flex gap-2 mt-auto pt-3 border-t">
+                             <button onclick="app.setContext(${i.id})" class="flex-grow text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-1.5 rounded font-bold"><i class="fa-regular fa-comments mr-1"></i> Chat</button>
+                             <button onclick="app.aiAction(${i.id},'summary')" class="text-[10px] bg-slate-50 hover:bg-slate-100 px-2 py-1.5 rounded text-slate-600" title="Summary"><i class="fa-solid fa-align-left"></i></button>
+                             <button onclick="app.aiAction(${i.id},'quiz')" class="text-[10px] bg-slate-50 hover:bg-slate-100 px-2 py-1.5 rounded text-slate-600" title="Quiz"><i class="fa-solid fa-question"></i></button>
+                        </div>
+                    </div>`;
+                }).join(''); 
+            }
+
+            renderList(data, type) {
+                if(data.length===0) { this.dom.listContent.innerHTML='<div class="text-center py-10 text-slate-400">Empty.</div>'; return; }
+                this.dom.listContent.innerHTML = data.map(i => {
+                    const date = new Date(i.timestamp).toLocaleDateString();
+                    const btn = type==='unread' ? `<button onclick="app.toggleRead(${i.id},'${type}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">Read</button>` : `<button onclick="app.toggleRead(${i.id},'${type}')" class="border border-slate-300 text-slate-500 px-3 py-1 rounded text-xs">Unread</button>`;
+                    const ai = type==='read' ? `
+                        <button onclick="app.setContext(${i.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs mr-2 font-bold">Chat</button>
+                        <button onclick="app.closeAndAsk(${i.id},'summary')" class="bg-slate-100 px-2 py-1 rounded text-xs mr-2">Summary</button>
+                        <button onclick="app.closeAndAsk(${i.id},'quiz')" class="bg-amber-50 px-2 py-1 rounded text-xs text-amber-600">Quiz</button>` : '';
+                    return `<div class="bg-white p-4 rounded border border-slate-100 flex justify-between items-start mb-2"><div class="flex-grow"><h4 class="font-bold text-slate-800">${i.topic}</h4><div class="text-xs text-slate-400 mt-1">${date}</div><div class="mt-2">${ai}</div></div><div class="flex flex-col gap-2 items-end">${btn}<button onclick="app.deleteItem(${i.id})" class="text-red-400 text-xs"><i class="fa-solid fa-trash"></i></button></div></div>`;
+                }).join('');
+            }
+            async closeAndAsk(id, type) { this.dom.listModal.classList.add('hidden'); await this.aiAction(id, type); }
+            async toggleRead(id, viewType) { const i=await this.db.getById(id); if(i){ i.isRead=!i.isRead; await this.db.add(i); this.openList(viewType); this.loadDashboard(); } }
+            async deleteItem(id) { if(confirm("Delete?")) { await this.db.delete(id); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
+            async clearDatabase() { if(confirm("Delete All?")) { await this.db.clear(); this.dom.listModal.classList.add('hidden'); this.loadDashboard(); } }
+            viewDatabase() { this.openList('read'); }
         }
         window.app = new DashboardApp();
     </script>
