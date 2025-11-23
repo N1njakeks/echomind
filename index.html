@@ -1,5 +1,179 @@
-<script>
-        // --- PROMPT TEMPLATES (FÜR FUNKTIONALITÄT) ---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EchoMind Cloud</title>
+    
+    <link rel="icon" href="https://api.dicebear.com/7.x/shapes/svg?seed=EchoMind&backgroundColor=4f46e5">
+    <meta name="theme-color" content="#ffffff">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .prose p { margin-bottom: 0.5em; }
+        .message-enter { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .yt-thumbnail { aspect-ratio: 16/9; background-size: cover; background-position: center; border-radius: 0.5rem; margin-bottom: 0.75rem; }
+        
+        .citation-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            background-color: #e0e7ff; color: #4338ca;
+            padding: 2px 8px; border-radius: 12px;
+            font-size: 0.75em; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; vertical-align: baseline; border: 1px solid #c7d2fe;
+            text-decoration: none !important; white-space: nowrap; margin: 0 2px;
+        }
+        .citation-btn:hover { background-color: #4338ca; color: white; transform: translateY(-1px); }
+        .citation-btn::before { content: "\f02d"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+        #sourceContent {
+            background-color: #ffffff; color: #334155; font-family: 'Georgia', serif;
+            line-height: 1.8; padding: 3rem; max-width: 100%; margin: 0 auto;
+        }
+
+        .page-marker {
+            display: block; border-bottom: 2px solid #e2e8f0; margin: 4rem 0 2rem 0;
+            padding-bottom: 0.5rem; font-family: sans-serif; font-weight: 700;
+            color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;
+            letter-spacing: 0.1em; text-align: center; scroll-margin-top: 120px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <nav class="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-indigo-200 shadow-lg">E</div>
+            <span class="font-semibold text-lg tracking-tight hidden sm:inline">EchoMind</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="userInfo" class="text-xs font-medium text-slate-500 hidden sm:block"></div>
+            <button onclick="app.logout()" class="text-xs text-slate-400 hover:text-red-600 transition border border-slate-200 rounded px-2 py-1" title="Sign Out">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-grow flex flex-col items-center px-4 pt-8 pb-36 max-w-5xl mx-auto w-full">
+        
+        <div class="w-full mb-8 flex flex-wrap justify-between items-end gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Your Library</h1>
+                <p class="text-slate-500 text-sm">Private cloud storage & AI analysis.</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="file" id="pdfInput" accept=".pdf" class="hidden">
+                <button onclick="app.viewDatabase()" class="text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition shadow-sm border border-slate-200">
+                    <i class="fa-solid fa-list"></i> List
+                </button>
+                <button onclick="document.getElementById('pdfInput').click()" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm shadow-indigo-200 hover:shadow-indigo-300">
+                    <i class="fa-solid fa-plus"></i> PDF Upload
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <button onclick="app.openList('unread')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition text-left group relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-regular fa-bookmark text-6xl text-indigo-600"></i></div>
+                <h3 class="font-bold text-lg text-slate-800">Inbox (Unread)</h3>
+                <p class="text-sm text-slate-500 mt-1">New sources via extension or upload.</p>
+                <div class="mt-4 text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full w-fit" id="countUnread">0 Sources</div>
+            </button>
+
+            <button onclick="app.openList('read')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-200 transition text-left group relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><i class="fa-solid fa-book-open text-6xl text-emerald-600"></i></div>
+                <h3 class="font-bold text-lg text-slate-800">Notebook (Read)</h3>
+                <p class="text-sm text-slate-500 mt-1">Ready for Deep Dive & Quiz.</p>
+                <div class="mt-4 text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full w-fit" id="countRead">0 Sources</div>
+            </button>
+        </div>
+
+        <div class="w-full mb-10">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Deep Dive</h2>
+                <button onclick="app.loadDashboard()" class="text-xs text-slate-400 hover:text-indigo-600 transition"><i class="fa-solid fa-rotate"></i> Shuffle</button>
+            </div>
+            <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            <div id="emptyState" class="hidden w-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+                <p class="text-slate-500 font-medium">Notebook empty.</p>
+            </div>
+        </div>
+        
+        <div id="chatContainer" class="w-full flex flex-col gap-6 mb-4"></div>
+    </main>
+
+    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 z-20">
+        <div class="max-w-3xl mx-auto relative">
+            <div id="contextBar" class="hidden absolute -top-10 left-0 right-0 flex justify-between items-center bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-t-lg text-xs font-medium shadow-sm">
+                <span class="truncate max-w-[85%] flex items-center"><i class="fa-solid fa-link mr-2"></i>Chatting with: <span id="contextName" class="font-bold ml-1">...</span></span>
+                <button onclick="app.clearContext()" class="hover:text-indigo-900 p-1"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="flex gap-2">
+                <textarea id="mainInput" rows="1" class="flex-grow p-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 resize-none text-slate-800 placeholder-slate-400 text-sm" placeholder="Ask a question..."></textarea>
+                <button id="sendBtn" class="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl flex items-center justify-center transition-colors"><i class="fa-solid fa-arrow-up text-sm"></i></button>
+            </div>
+        </div>
+    </footer>
+
+    <div id="authModal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl max-w-sm w-full shadow-2xl text-center relative animate-fade-in">
+            <div class="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mx-auto mb-4 text-xl font-bold">E</div>
+            <h2 class="text-xl font-bold text-slate-800 mb-1">Welcome back</h2>
+            <p class="text-sm text-slate-500 mb-6">Sign in to access your cloud library.</p>
+            <input type="email" id="emailInput" class="w-full p-3 border border-slate-300 rounded-lg mb-3 text-sm outline-none" placeholder="Email">
+            <input type="password" id="passwordInput" class="w-full p-3 border border-slate-300 rounded-lg mb-6 text-sm outline-none" placeholder="Password">
+            <div class="flex flex-col gap-3">
+                <button onclick="app.login()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Sign In</button>
+                <button onclick="app.signup()" class="w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-lg font-medium hover:bg-slate-50 transition">Create Account</button>
+            </div>
+            <div id="authError" class="text-red-500 text-xs mt-4 hidden"></div>
+        </div>
+    </div>
+    
+    <div id="listModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl p-0 flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+            <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-white z-10">
+                <div><h3 class="font-bold text-xl text-slate-800" id="listTitle">List</h3><p class="text-xs text-slate-500 mt-1" id="listSubtitle">Cloud Data</p></div>
+                <button onclick="document.getElementById('listModal').classList.add('hidden'); app.loadDashboard();" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-6"><div id="listContent" class="space-y-3"></div></div>
+        </div>
+    </div>
+
+    <div id="sourceModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white w-full max-w-3xl h-[90vh] rounded-2xl flex flex-col shadow-2xl animate-fade-in m-4 overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-slate-100 bg-white z-10">
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800 truncate max-w-xs" id="sourceTitle">Source</h3>
+                    <p class="text-xs text-emerald-600 font-medium" id="sourcePage"><i class="fa-solid fa-location-dot mr-1"></i>Locating...</p>
+                </div>
+                <button onclick="document.getElementById('sourceModal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-8 bg-slate-50 scroll-smooth text-slate-700" id="sourceContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase Keys für Client-seitige Auth und Supabase Client Initialisierung
+        const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
+
+        // --- PROMPT TEMPLATES (WICHTIG!) ---
         const PROMPT_TEMPLATES = {
             summary: (context, title) => {
                 const cleanText = (context || "").substring(0, 500000); 
@@ -11,11 +185,6 @@
             }
         };
         // --- ENDE PROMPT TEMPLATES ---
-
-
-        // Supabase Keys für Client-seitige Auth und Supabase Client Initialisierung
-        const SUPABASE_URL = "https://jlsqtialzexjfzswyrzm.supabase.co"; 
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impsc3F0aWFsemV4amZ6c3d5cnptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzEyNzUsImV4cCI6MjA3OTQwNzI3NX0.BVQwrvgte-wbJZ2PyaNMup9y2fhKGOME5UysGP3w_xc"; 
 
         class APIClient {
             async request(endpoint, method = 'GET', body = null) {
