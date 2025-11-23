@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const body = await parseBody(req);
     const { query, user_id, context_item_id } = body; 
 
-    // --- SICHERHEITS-PRÜFUNGEN (Behebt 401/400 Fehler) ---
+    // --- SICHERHEITS-PRÜFUNGEN ---
     if (!user_id) return res.status(401).json({ message: "Fehler: User-Authentifizierung fehlt." });
     if (!query) return res.status(400).json({ message: "Fehler: Abfrage (Query) ist leer." });
     // --- ENDE SICHERHEITS-PRÜFUNGEN ---
@@ -30,44 +30,47 @@ export default async function handler(req, res) {
     try {
         let contextText = "";
         
-        // 1. Suche mit Gemini Embeddings (Wenn KEIN Kontext-Item ausgewählt ist)
+        // 1. Kontext aus Vektor-Suche oder Einzel-Item holen
         if (!context_item_id) {
+            // RAG-Suche (Vektor-Suche)
             const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
             const result = await embeddingModel.embedContent(query);
             const queryVector = result.embedding.values;
 
-            // Supabase RPC Aufruf (Vektor-Suche)
+            // ACHTUNG: Match Threshold ist hier für den Test sehr niedrig (0.1)
             const { data: foundItems } = await supabase.rpc('match_items', {
                 query_embedding: queryVector,
-                match_threshold: 0.4,
+                match_threshold: 0.1, // Gelockert, um Ergebnisse zu finden
                 match_count: 3
             });
 
             if (foundItems && foundItems.length > 0) {
-                // Kontexte aus den gefundenen Dokumenten zusammenfügen
                 contextText = foundItems.map(item => `Quelle: ${item.topic}\n${item.full_text}`).join("\n\n---\n\n");
             }
         } 
-        // 2. Suche in einem spezifischen Dokument (Wenn Kontext-Item ausgewählt ist)
         else {
+            // Einzel-Dokument Abruf (für Summary/Quiz Button Klick)
             const { data } = await supabase.from('items').select('full_text').eq('id', context_item_id).single();
             if(data) contextText = data.full_text;
         }
 
-        // 3. Den Prompt für Gemini erstellen
-        const systemPrompt = `Du bist ein hilfreicher Lernassistent. Antworte basierend auf den bereitgestellten Notizen. Wenn du die Antwort in den Notizen nicht findest, sag freundlich, dass diese Information nicht verfügbar ist. NOTIZEN: ${contextText.substring(0, 30000)}`;
+        // 2. Chatten mit Gemini Flash
+        const systemPrompt = `
+        Du bist ein hilfreicher Lernassistent. 
+        Deine Priorität ist es, die Frage des Nutzers mithilfe der folgenden Notizen zu beantworten.
+        Wenn die Notizen irrelevant oder leer sind, beantworte die Frage mit deinem allgemeinen Wissen. 
+        NOTIZEN: ${contextText.substring(0, 30000)}`;
 
         const chatModel = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash", // Korrigierter Modellname
+            model: "gemini-2.5-flash", 
             systemInstruction: systemPrompt
         });
 
         const isQuiz = query.toLowerCase().includes('quiz');
 
-        // 4. KI-Antwort generieren
+        // 3. Quiz-Logik (als separates JSON-Format)
         if (isQuiz) {
-            // Quiz-Logik (speziell für JSON-Output)
-            const quizPrompt = `Erstelle ein Quiz basierend auf dem Kontext als reines JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }`;
+            const quizPrompt = `Erstelle ein Multiple-Choice-Quiz basierend auf dem Kontext als reines JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }`;
             
             const quizResult = await chatModel.generateContent({
                 contents: quizPrompt,
@@ -77,17 +80,16 @@ export default async function handler(req, res) {
             const quizText = quizResult.response.text();
             const jsonMatch = quizText.match(/\{[\s\S]*\}/);
             
-            // Wenn JSON gefunden, senden wir es zurück
             if(jsonMatch) return res.status(200).json({ quizJSON: JSON.parse(jsonMatch[0]) });
             else return res.status(200).json({ message: "Quiz konnte nicht als sauberes JSON generiert werden.", details: quizText });
         }
         
-        // Normale Chat-Antwort
+        // 4. Normale Chat-Antwort
         const result = await chatModel.generateContent(query);
         return res.status(200).json({ answer: result.response.text() });
 
     } catch (error) {
-        // Dieser Block fängt den 500er Fehler ab
+        // Fängt Code-Fehler ab und sendet sie an den Browser zurück
         console.error("CRITICAL CHAT API CRASH:", error.message);
         return res.status(500).json({ message: "Server-Fehler: Es ist ein Fehler im Code aufgetreten.", details: error.message });
     }
