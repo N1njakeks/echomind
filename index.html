@@ -252,9 +252,11 @@
 
         class AIService {
             constructor() { } 
+            // Key-Management Funktionen entfernt, da Key im Backend
             loadKey(userId) {}
             saveKey(userId, key) {}
             hasKey() { return true; }
+            
             async call(prompt, userId, isJson = false, contextContent = null) {
                 if (!userId) throw new Error("User ID missing for AI call");
                 const response = await fetch(`/api/chat`, { 
@@ -274,7 +276,7 @@
             constructor() {
                 this.db = new SupabaseDB();
                 this.api = new APIClient(); 
-                this.ai = new AIService(); // INITIALISIERT
+                this.ai = new AIService(); 
                 this.currentData = [];
                 this.notifiedIds = new Set();
                 this.activeCitationItem = null;
@@ -299,16 +301,23 @@
             async login() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { const user = await this.db.login(email, pass); this.onLoginSuccess(user); } 
+                try { 
+                    const user = await this.db.login(email, pass); 
+                    this.onLoginSuccess(user); 
+                } 
                 catch(e) { this.dom.authError.innerText = "Failed: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async signup() {
                 const email = this.dom.emailInput.value.trim();
                 const pass = this.dom.passInput.value.trim();
-                try { await this.db.signup(email, pass); alert("Please check email to verify account!"); } 
+                try { 
+                    await this.db.signup(email, pass); 
+                    alert("Please check email to verify account!"); 
+                } 
                 catch(e) { this.dom.authError.innerText = "Error: " + e.message; this.dom.authError.classList.remove('hidden'); }
             }
             async logout() { this.db.logout(); location.reload(); }
+            
             onLoginSuccess(user) {
                 this.dom.authModal.classList.add('hidden');
                 this.dom.userInfo.innerText = user.email;
@@ -332,13 +341,21 @@
             }
 
             async loadDashboard() { 
-                try { this.currentData = await this.db.getAll(); } catch(e) { this.currentData = []; console.error(e); }
+                try {
+                    this.currentData = await this.db.getAll(); 
+                } catch(e) {
+                    this.currentData = [];
+                    console.error(e);
+                    this.addBubble("⚠️ Fehler beim Laden.", false);
+                }
                 const unread = this.currentData.filter(i => !i.isRead);
                 const read = this.currentData.filter(i => i.isRead);
                 this.dom.countUnread.innerText = `${unread.length} Sources`;
                 this.dom.countRead.innerText = `${read.length} Sources`;
-                if (read.length === 0 && unread.length === 0) this.dom.emptyState.classList.remove('hidden');
-                else {
+                
+                if (read.length === 0 && unread.length === 0) {
+                    this.dom.emptyState.classList.remove('hidden');
+                } else {
                     this.dom.emptyState.classList.add('hidden');
                     if (read.length > 0) {
                         const shuffled = read.sort(() => 0.5 - Math.random()).slice(0, 6);
@@ -384,8 +401,9 @@
                 let contextContent = null; 
                 if (this.activeCitationItem) {
                     let i = this.activeCitationItem;
-                    const freshItem = this.currentData.find(item => item.id === i.id);
-                    if(freshItem) i = freshItem;
+                    // Fresh data check
+                    const fresh = this.currentData.find(x => x.id === i.id);
+                    if(fresh) i = fresh;
                     const contextLimit = 500000; 
                     contextContent = (i.fullText || "").substring(0, contextLimit);
                     prompt = `You are an assistant helping with the source: "${i.topic}". SOURCE CONTENT: ${contextContent} USER QUESTION: ${text} INSTRUCTION: Answer based on the source. Cite pages/timestamps like [[Page X]] if possible. Use $...$ for math.`;
