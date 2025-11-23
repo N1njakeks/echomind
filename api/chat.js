@@ -1,89 +1,78 @@
-import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Stelle sicher, dass diese Variablen in deinem Environment gesetzt sind
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
-
-export const config = { runtime: 'edge' };
+// api/chat.js
+export const config = {
+    runtime: 'edge', // Schneller & kein Node.js Müll
+};
 
 export default async function handler(req) {
-    if (req.method !== 'POST') return new Response('Nur POST erlaubt', { status: 405 });
+    if (req.method !== 'POST') return new Response("Method not allowed", { status: 405 });
 
     try {
-        const body = await req.json();
-        const { query, user_id, context_item_id } = body; 
+        const { query, context_content } = await req.json();
+        const apiKey = process.env.GEMINI_KEY;
 
-        if (!user_id || !query) {
-            return new Response(JSON.stringify({ message: "Fehler: User ID oder Abfrage fehlt." }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-        }
+        if (!apiKey) return new Response(JSON.stringify({ message: "API Key fehlt in Vercel." }), { status: 500 });
 
-        let contextText = "";
+        // 1. Prompt bauen
+        const contextText = context_content ? context_content.substring(0, 40000) : "";
         
-        // --- 1. RAG Logik (Vektor Store) ---
-        if (!context_item_id) {
-            // Vektor-Suche über alle Dokumente
-            const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
-            const result = await embeddingModel.embedContent(query);
-            const queryVector = result.embedding.values;
-
-            const { data: foundItems } = await supabase.rpc('match_items', {
-                query_embedding: queryVector,
-                match_threshold: 0.1, 
-                match_count: 3
-            });
-
-            if (foundItems && foundItems.length > 0) {
-                contextText = foundItems.map(item => `Quelle: ${item.topic}\n${item.full_text}`).join("\n\n---\n\n");
-            }
-        } else {
-            // Einzel-Dokument Abruf (Chat-Kontext)
-            const { data } = await supabase.from('items').select('full_text').eq('id', context_item_id).single();
-            if(data) contextText = data.full_text;
-        }
-
-        // --- 2. Gemini Chat Setup ---
         const systemPrompt = `
-        Du bist ein hilfreicher Lern-Assistent. 
-        Deine Priorität ist es, die Frage des Nutzers mithilfe der folgenden Notizen zu beantworten.
-        Wenn die Notizen irrelevant oder leer sind, beantworte die Frage mit deinem allgemeinen Wissen. 
-        NOTIZEN: ${contextText.substring(0, 30000)}`;
-
-        const chatModel = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash", 
-            systemInstruction: systemPrompt
-        });
+        Du bist ein hilfreicher Lern-Assistent.
+        Antworte basierend auf diesen Notizen des Nutzers.
+        
+        NOTIZEN:
+        ${contextText}
+        `;
 
         const isQuiz = query.toLowerCase().includes('quiz');
 
-        // --- 3. Quiz / Chat Logik (Der Zustand vor der Reparatur) ---
+        let fullPrompt = systemPrompt + "\n\nUser: " + query;
+
         if (isQuiz) {
-            // Wir fragen nach JSON, erzwingen es aber NICHT mit responseMimeType!
-            const quizPrompt = `Erstelle ein Multiple-Choice-Quiz basierend auf dem Kontext als JSON Format: { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }`;
-            
-            const quizResult = await chatModel.generateContent({
-                contents: [{ role: "user", parts: [{ text: quizPrompt }] }]
-                // HIER FEHLT DIE ZEILE: generationConfig: { responseMimeType: "application/json" }
-            });
-            
-            const quizText = quizResult.response.text; 
-            
-            try {
-                // Versuche, das zurückgegebene (manchmal unsaubere) JSON zu parsen
-                let cleanedText = quizText.replace(/^```json\n?|```$/g, '').trim(); 
-                return new Response(JSON.stringify({ quizJSON: JSON.parse(cleanedText) }), { headers: { 'Content-Type': 'application/json' } });
-            } catch (e) {
-                 // Wenn das Parsen fehlschlägt, senden wir es als normalen Text, was das Frontend als Fehler anzeigen wird
-                 return new Response(JSON.stringify({ answer: quizText }), { headers: { 'Content-Type': 'application/json' } });
-            }
+            fullPrompt += `\n\nAUFGABE: Erstelle ein Multiple-Choice-Quiz.
+            Antworte NUR mit reinem JSON in diesem Format:
+            { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }`;
         }
-        
-        // 4. Normale Chat-Antwort
-        const result = await chatModel.generateContent(query);
-        return new Response(JSON.stringify({ answer: result.response.text() }), { headers: { 'Content-Type': 'application/json' } });
+
+        // 2. DIREKTER HTTP REQUEST (Keine Library!)
+        // Wir nutzen v1beta, da ist gemini-1.5-flash zu 100% verfügbar.
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    role: "user",
+                    parts: [{ text: fullPrompt }]
+                }],
+                generationConfig: {
+                    // JSON Mode erzwingen bei Quiz
+                    responseMimeType: isQuiz ? "application/json" : "text/plain"
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Google API Error: ${response.status} ${errText}`);
+        }
+
+        const data = await response.json();
+        const text = data.candidates[0].content.parts[0].text;
+
+        // 3. Antwort zurücksenden
+        if (isQuiz) {
+            return new Response(JSON.stringify({ quizJSON: JSON.parse(text) }), { 
+                headers: { 'Content-Type': 'application/json' } 
+            });
+        }
+
+        return new Response(JSON.stringify({ answer: text }), { 
+            headers: { 'Content-Type': 'application/json' } 
+        });
 
     } catch (error) {
-        console.error("CRITICAL CHAT API CRASH:", error.message);
-        return new Response(JSON.stringify({ message: "Server-Fehler", details: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        console.error("CHAT ERROR:", error);
+        return new Response(JSON.stringify({ message: "Fehler: " + error.message }), { status: 500 });
     }
 }
